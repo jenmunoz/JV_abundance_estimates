@@ -60,17 +60,17 @@ ebirdst_data_dir()   # List the directory where you will be saving the ebird ras
 # Set data download directory (session only), if you want to have it on a speciefic folder
 Sys.setenv(
   EBIRDST_DATA_DIR =
-    "C:/Users/jmunoz/Local_BirdsCanada/1_JV_science_coordinator_role_local/1_Projects/14_relativetoabsolute_abundance/JV_birds_abundance_estimates/data/species_layers")
+    "C:/Users/jmunoz/Local_BirdsCanada/1_JV_science_coordinator_role_local/1_Projects/14_relativetoabsolute_abundance/JV_abundance_estimates/data/species_layers")
 
 ebirdst_data_dir()
 
 # ================================================================
-# 2) DOWNLOAD SPECIES DATA
+# 2) DOWNLOAD INDIVIDUAL SPECIES DATA
 # ================================================================
 
 # Dry run example, check what is available for a given species 
 
-ebirdst_download_status( "Pied-billed grebe", pattern = "_3km", download_occurrence = TRUE, dry_run = TRUE)
+ebirdst_download_status( "Pied-billed grebe", pattern = "abundance_seasonal_max_3km", download_occurrence = TRUE, dry_run = TRUE)
 
 # Download example
 ebirdst_download_status( "American Coot", pattern = "_3km",download_abundance = TRUE,dry_run = FALSE)
@@ -87,6 +87,30 @@ ebirdst_download_status( "Common Loon", pattern = "_3km",download_abundance = TR
 
 load_raster()
 
+
+# ================================================================
+# 2a) DOWNLOAD  ALL NAWCA SPECIES DATA
+# ================================================================
+# List of species from NAWCA priorities
+
+nawca_list<- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE) %>%
+  as_tibble() %>% 
+  mutate(common_name=NAWCA_species) %>% 
+  filter(ACAD=="Yes")
+
+species_interest_list<-nawca_list$common_name
+
+# Download data for the list of species 
+
+for (species in species_interest_list) {
+  cat("/n>>> Downloading:", species, "/n")
+  # Download seasonal max abundance data at 3 km
+  try({
+    ebirdst_download_status(species,pattern = "abundance_seasonal_mean_3km",download_occurrence = FALSE,dry_run = FALSE, force = TRUE)
+  }, silent = TRUE)
+}
+
+
 # ================================================================
 # 3) INPUT DATA
 # ================================================================
@@ -100,17 +124,23 @@ load_raster()
 # View(ebirdst_runs) # Available modeled species
 
 #species<-"Sora"
-#species<-"American Bittern"
-#species<-"Marsh Wren"
-#species<-"Eared Grebe"
+
 
 # READ YOUR CONSERVATION POLYGON
 # Conservation polygon (sf object)
-# conservation_polygon <- 
-#   st_read("data/conservation_polygon/BC/BC_boundary_layer.shp")
+# Sys.setenv(SHAPE_RESTORE_SHX = "YES")
 
-conservation_polygon <-
-  st_read("data/conservation_polygon/ColumbiaWetland/Columbia Wetland Corridor area FINAL.shp")
+#conservation_polygon <-
+  st_read("data/conservation_polygon/BC/BC_boundary_layer.shp")
+
+
+conservation_polygon <-st_read("data/conservation_polygon/BurnsBog/BurnsBog.shp")
+
+#conservation_polygon <-st_read("data/conservation_polygon/HorsethiefCreek/Horsethief.shp")
+
+
+# conservation_polygon <-
+#   st_read("data/conservation_polygon/ColumbiaWetland/Columbia Wetland Corridor area FINAL.shp")
 
 #plot(conservation_polygon )
 # ACAD population data
@@ -124,6 +154,7 @@ ACAD_clean <- ACAD_raw %>%
     pop_global  = parse_number(Global.Pop.Size.)
   ) %>%
   dplyr::select(common_name, pop_us_ca, pop_global)
+
 
 # ================================================================
 # 4) FUNCTIONS – RELATIVE → ABSOLUTE ESTIMATES
@@ -290,6 +321,7 @@ estimate_pop_conservation_area_global <- function(species,
 # ================================================================
 
 estimate_pop_conservation_area_breeding( species,conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_breeding("Redhead",conservation_polygon,ACAD_clean)
 
 estimate_pop_conservation_area_breeding("American Coot",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Sora",conservation_polygon,ACAD_clean)
