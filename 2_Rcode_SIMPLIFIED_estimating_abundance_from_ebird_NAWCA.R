@@ -87,7 +87,6 @@ ebirdst_download_status( "Common Loon", pattern = "_3km",download_abundance = TR
 
 load_raster()
 
-
 # ================================================================
 # 2a) DOWNLOAD  ALL NAWCA SPECIES DATA
 # ================================================================
@@ -110,7 +109,6 @@ for (species in species_interest_list) {
     ebirdst_download_status(species,pattern = "abundance_seasonal_mean_3km",download_occurrence = FALSE,dry_run = FALSE, force = TRUE)
   }, silent = TRUE)
 }
-
 
 # ================================================================
 # 3) INPUT DATA
@@ -149,7 +147,6 @@ ACAD_clean <- ACAD_raw %>%
     pop_global  = parse_number(Global.Pop.Size.)
   ) %>%
   dplyr::select(common_name, pop_us_ca, pop_global)
-
 
 # ================================================================
 # 4) FUNCTIONS – RELATIVE → ABSOLUTE ESTIMATES
@@ -210,7 +207,6 @@ abundance_estimate_northamerica_scaled <- data.frame(abundance = abundance_est,
 
   return(abundance_estimate_northamerica_scaled)
 }
-
 
 
 # ------------------------------------------------
@@ -319,15 +315,10 @@ estimate_pop_conservation_area_global <- function(species,
 estimate_pop_conservation_area_breeding( species,conservation_polygon,ACAD_clean)
 
 estimate_pop_conservation_area_global( "American Coot", conservation_polygon, ACAD_clean)
-
 estimate_pop_conservation_area_breeding("American Coot",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Virginia Rail",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Pied-billed Grebe",conservation_polygon,ACAD_clean)
-
-
-estimate_pop_conservation_area_breeding( species,conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Redhead",conservation_polygon,ACAD_clean)
-
 estimate_pop_conservation_area_breeding("American Coot",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Sora",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Marsh Wren",conservation_polygon,ACAD_clean)
@@ -336,14 +327,12 @@ estimate_pop_conservation_area_breeding("Virginia Rail",conservation_polygon,ACA
 estimate_pop_conservation_area_breeding("Bank Swallow",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Barn Swallow",conservation_polygon,ACAD_clean)
 
-
-estimate_pop_conservation_area_americas(species,conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_americas("American Coot",conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_americas("Marsh Wren",conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_americas("Eared Grebe",conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_americas("American Coot",conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_americas("Belted Kingfisher",conservation_polygon,ACAD_clean)
-
+# estimate_pop_conservation_area_americas(species,conservation_polygon,ACAD_clean)
+# estimate_pop_conservation_area_americas("American Coot",conservation_polygon,ACAD_clean)
+# estimate_pop_conservation_area_americas("Marsh Wren",conservation_polygon,ACAD_clean)
+# estimate_pop_conservation_area_americas("Eared Grebe",conservation_polygon,ACAD_clean)
+# estimate_pop_conservation_area_americas("American Coot",conservation_polygon,ACAD_clean)
+# estimate_pop_conservation_area_americas("Belted Kingfisher",conservation_polygon,ACAD_clean)
 
 estimate_pop_conservation_area_global( species,conservation_polygon, ACAD_clean)
 estimate_pop_conservation_area_global( "American Coot", conservation_polygon, ACAD_clean)
@@ -355,37 +344,28 @@ estimate_pop_conservation_area_global("Barn Swallow",conservation_polygon,ACAD_c
 estimate_pop_conservation_area_global("American Wigeon",conservation_polygon,ACAD_clean)
 
 
-# Here are some problem that we will encounter
+# Here are some problems that we will encounter
 
 # Species that have have small numbers ans are very secretive
 estimate_pop_conservation_area_breeding("American Bittern",conservation_polygon,ACAD_clean) #
 
-
+# == = == === ==== === == = === == === == === = ==
+# == = == === ==== === == = === == === == === = ==
+#### The end
+# == = == === ==== === == = === == === == === = ==
+# == = == === ==== === == = === == === == === = ==
 
 # Sandbox -----------------------------------------------------------------
 # Here is a rational, we are using data from breeding population so the breeding estimate is restricted to the more precise information we have which it is US and Canada 
-# For the other seasons we will use the one that bets describe the species distribution, America or Global for computational process
+# For the other seasons we will use the one that best describe the species distribution, America or Global for computational process
 
-
-#### Rain check
-#Calculate the percentage of population in Northamerica based in ebird4
-#Compare it with the percentage of population form ACAD = North american pop/ Global population 
-# This helps us with the argument that this values are comparable 
-
-# I want to know the sum (total proportion ) of population that leaves in NA 
+#### Rain check for assumption 4 
+# I want to know the sum (total proportion ) of population that leaves in NA inboth datasets
 
 species<-"American Coot"
-
 species<-"Bank swallow"
-
 species<-"Common nighthawk"
-
 species<-"Common Loon"
-
-
-
-  
-  
 
 abd_seasonal<- load_raster(
   species,
@@ -403,7 +383,6 @@ abd_global_total <- global(
 prop_pop_global <- abd_seasonal /
   abd_global_total$sum
 
-
 northamerica <- ne_countries(
   country = c("United States of America", "Canada")
 ) %>%
@@ -417,54 +396,21 @@ layer1<-prop_northamerica[[1]]
 total <- global(layer1, fun = "sum", na.rm = TRUE)
 
 
-# == = == === ==== === == = === == === == === = ==
-#### The end
-# == = == === ==== === == = === == === == === = ==
-
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # ================================================================
 # THE WHOLE CODE – STEP BY STEP
 # ================================================================
 # NO NEED TO RUN THIS PART OF THE CODE
-# THIS IS IF YOU ARE CURIOuS ON INDIVIDUAL DECISIONS TAKEN AND STEP BY STEP
-# ================================================================
-# 0) SETUP
-# ================================================================
-
-# Install required libraries (run once if needed)
-install.packages(c(
-  "tidyverse", "janitor", "glue", "fs", "png",
-  "viridis", "scales", "fields", "readr",
-  "rnaturalearth", "sf", "raster",
-  "ebirdst", "rmapshaper", "terra"
-))
-
-# Load libraries
-library(dplyr)
-library(janitor)
-library(glue)
-library(fs)
-library(png)
-library(viridis)
-library(scales)
-library(fields)
-library(readr)
-library(rnaturalearth)
-library(sf)
-library(raster)
-library(ebirdst)
-library(rmapshaper)
-library(terra)
-library(ggplot2)
+# THIS IS IF YOU ARE Curios ON INDIVIDUAL DECISIONS TAKEN AND STEP BY STEP
 
 
 # ================================================================
 # 1) EBIRD STATUS & TRENDS ACCESS
 # ================================================================
 
-# Request key: https://ebird.org/st/request
-set_ebirdst_access_key("f6me7thr51ul")  # replace locally
+# Request key online : https://ebird.org/st/request
+set_ebirdst_access_key("")  # replace locally use your ebird access code
 
 getwd()              # Working directory
 ebirdst_version()    # Model version (e.g., 2022)
