@@ -9,8 +9,8 @@
 ## 3) Enter the input data, including the species name and conservation area of interest
 ## 4) Choose the relevant function for your estimates 
 ## i) Breeding seasons all species
-## ii) Species distributed in the Americas: Migratory and non-breeding seasons
 ## iii) Species distributed globally: Migratory and non-breeding seasons
+## ii) Species distributed in the Americas: Migratory and non-breeding seasons
 ## Updated and annotated by Jenny Munoz
 ## Last updated: February 2026
 ###_###_####_###_###_###_###_###_###_###_###_###_###_###_###_###_###_
@@ -51,7 +51,7 @@ library(ggplot2)
 # This step allow you to download data from ebird 
 
 # Request key: https://ebird.org/st/request
-set_ebirdst_access_key("f6me7thr51ul")  # replace locally
+set_ebirdst_access_key("########")  # replace with your ebird KEY 
 
 getwd()              # Working directory
 ebirdst_version()    # Data version (e.g., 2022)
@@ -70,10 +70,10 @@ ebirdst_data_dir()
 
 # Dry run example, check what is available for a given species 
 
-ebirdst_download_status( "Pied-billed grebe", pattern = "abundance_seasonal_max_3km", download_occurrence = TRUE, dry_run = TRUE)
+ebirdst_download_status( "Bank Swallow", pattern = "abundance_seasonal", download_occurrence = TRUE, dry_run = TRUE)
 
 # Download example
-ebirdst_download_status( "American Coot", pattern = "_3km",download_abundance = TRUE,dry_run = FALSE)
+ebirdst_download_status( "American Coot", pattern = "abundance_seasonal_max_3km",download_abundance = TRUE,dry_run = FALSE)
 ebirdst_download_status( "Bank Swallow", pattern = "_3km",download_abundance = TRUE,dry_run = FALSE)
 ebirdst_download_status( "Sora", pattern = "_3km",download_abundance = TRUE,dry_run = FALSE)
 ebirdst_download_status( "American Bittern", pattern = "_3km",download_abundance = TRUE,dry_run = FALSE)
@@ -91,8 +91,8 @@ load_raster()
 # ================================================================
 # 2a) DOWNLOAD  ALL NAWCA SPECIES DATA
 # ================================================================
-# List of species from NAWCA priorities
-
+# List of species from NAWCA priorities or a list of species of interest 
+View(nawca_list)
 nawca_list<- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE) %>%
   as_tibble() %>% 
   mutate(common_name=NAWCA_species) %>% 
@@ -101,6 +101,7 @@ nawca_list<- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FA
 species_interest_list<-nawca_list$common_name
 
 # Download data for the list of species 
+# NOTE that we are downloading and using the mean abundance seasonal, we coudl also use the MAX!
 
 for (species in species_interest_list) {
   cat("/n>>> Downloading:", species, "/n")
@@ -116,35 +117,29 @@ for (species in species_interest_list) {
 # ================================================================
 
 # Create a folder named data and place there:
-# 1)Polygon of conservation interest shape file 
+# 1)a folder named "conservation_polygon" and include there teh polygons for potential areas of conservation as a  shape file 
 # 2)ACAD file, can be downloaded from here :  "https://pif.birdconservancy.org/avian-conservation-assessment-database-scores/", SAVE IT as a csv file 
 # Make sure that you change the naming of the columns is readable to R
 
 # Check that there is information on ebird about your species and use the name as presented there 
-# View(ebirdst_runs) # Available modeled species
+# View(ebirdst_runs) # list the Available modeled species
 
-#species<-"Sora"
-
-
-# READ YOUR CONSERVATION POLYGON
+# READ YOUR CONSERVATION POLYGON as a shape file 
 # Conservation polygon (sf object)
 # Sys.setenv(SHAPE_RESTORE_SHX = "YES")
 
-#conservation_polygon <-
-  st_read("data/conservation_polygon/BC/BC_boundary_layer.shp")
+# here are some conservation polygon examples 
 
+conservation_polygon <-st_read("data/conservation_polygon/BC/BC_boundary_layer.shp")
 
-conservation_polygon <-st_read("data/conservation_polygon/BurnsBog/BurnsBog.shp")
-
+#conservation_polygon <-st_read("data/conservation_polygon/BurnsBog/BurnsBog.shp")
 #conservation_polygon <-st_read("data/conservation_polygon/HorsethiefCreek/Horsethief.shp")
-
-
-# conservation_polygon <-
-#   st_read("data/conservation_polygon/ColumbiaWetland/Columbia Wetland Corridor area FINAL.shp")
+#conservation_polygon <-st_read("data/conservation_polygon/ColumbiaWetland/Columbia Wetland Corridor area FINAL.shp")
 
 #plot(conservation_polygon )
 # ACAD population data
 #ACAD_raw <- read.csv("data/ACAD_global_2024_05_23.csv")
+
 ACAD_raw <- read.csv("data/ACAD Global 2024.05.23.csv")
 
 ACAD_clean <- ACAD_raw %>%
@@ -172,6 +167,7 @@ estimate_pop_conservation_area_breeding <- function(species,
     species,
     product = "abundance",
     period = "seasonal",
+    metric = "mean", # note that here we can use mean or max
     resolution = "3km")
   
   northamerica <- ne_countries(
@@ -216,63 +212,9 @@ abundance_estimate_northamerica_scaled <- data.frame(abundance = abundance_est,
 }
 
 
-# ------------------------------------------------
-# NON-BREEDING and MIGRATION – Species restricted to Americas
-# Uses GLOBAL population estimate
-# ------------------------------------------------
-
-estimate_pop_conservation_area_americas <- function(species,
-                                 conservation_polygon,
-                                 ACAD_clean) {
-  abd <- load_raster(
-    species,
-    product = "abundance",
-    period = "seasonal",
-    resolution = "3km")
-  
-  america <- ne_countries(
-    continent = c("North America", "South America")) %>%
-    st_union() %>%
-    st_transform(crs = st_crs(abd )) %>% 
-    vect() 
-    
-  abd_am <- mask(abd, america)
-  total_am <- global(abd_am, fun = "sum", na.rm = TRUE)
-  
-  prop_am <- abd_am / total_am$sum
-  
-  conservation_area <- conservation_polygon %>%
-    st_transform(crs = st_crs(abd)) %>%
-    vect()
-  
-  prop_area <- mask(prop_am, conservation_area)
-  prop_area_sum <- global(prop_area, fun = "sum", na.rm = TRUE)
-  
-  pop_size <- ACAD_clean %>%
-    filter(common_name == species) %>%
-    pull(pop_global)
-  
-  if (length(pop_size) == 0)
-    stop("Species not found in ACAD.")
-  
-  abundance_est <- prop_area_sum * pop_size  # Compute absolute abundance
-  
-  note<-"Use for species distributed in the Americas. Extract the non-breeding and migratory seasons estimates"
-  note1<-"Uses ACAD global estimates and ebird cropped to the americas"
-  
-  # Return data frame
-  abundance_estimate_americas_scaled <- data.frame(abundance = abundance_est, 
-                                    species = species,
-                                   framework=note1,
-                                    note=note )
-  
-  return(abundance_estimate_americas_scaled)
-  
-}
-
 
 # ------------------------------------------------
-# NON-BREEDING – Globally distributed species
+# NON-BREEDING – Mig  Globally distributed species
 # Uses GLOBAL population estimate
 # ------------------------------------------------
 estimate_pop_conservation_area_global <- function(species,
@@ -316,9 +258,72 @@ estimate_pop_conservation_area_global <- function(species,
   
 }
 
+# ------------------------------------------------
+# NON-BREEDING and MIGRATION – Species restricted to Americas
+# Uses GLOBAL population estimate
+# ------------------------------------------------
+# # This is likely no needed 
+# estimate_pop_conservation_area_americas <- function(species,
+#                                                     conservation_polygon,
+#                                                     ACAD_clean) {
+#   abd <- load_raster(
+#     species,
+#     product = "abundance",
+#     period = "seasonal",
+#     resolution = "3km")
+#   
+#   america <- ne_countries(
+#     continent = c("North America", "South America")) %>%
+#     st_union() %>%
+#     st_transform(crs = st_crs(abd )) %>% 
+#     vect() 
+#   
+#   abd_am <- mask(abd, america)
+#   total_am <- global(abd_am, fun = "sum", na.rm = TRUE)
+#   
+#   prop_am <- abd_am / total_am$sum
+#   
+#   conservation_area <- conservation_polygon %>%
+#     st_transform(crs = st_crs(abd)) %>%
+#     vect()
+#   
+#   prop_area <- mask(prop_am, conservation_area)
+#   prop_area_sum <- global(prop_area, fun = "sum", na.rm = TRUE)
+#   
+#   pop_size <- ACAD_clean %>%
+#     filter(common_name == species) %>%
+#     pull(pop_global)
+#   
+#   if (length(pop_size) == 0)
+#     stop("Species not found in ACAD.")
+#   
+#   abundance_est <- prop_area_sum * pop_size  # Compute absolute abundance
+#   
+#   note<-"Use for species distributed in the Americas. Extract the non-breeding and migratory seasons estimates"
+#   note1<-"Uses ACAD global estimates and ebird cropped to the americas"
+#   
+#   # Return data frame
+#   abundance_estimate_americas_scaled <- data.frame(abundance = abundance_est, 
+#                                                    species = species,
+#                                                    framework=note1,
+#                                                    note=note )
+#   
+#   return(abundance_estimate_americas_scaled)
+#   
+# }
+
+
 # ================================================================
 # 5) EXAMPLE CALL
 # ================================================================
+estimate_pop_conservation_area_breeding( species,conservation_polygon,ACAD_clean)
+
+estimate_pop_conservation_area_global( "American Coot", conservation_polygon, ACAD_clean)
+
+estimate_pop_conservation_area_breeding("American Coot",conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_breeding("Virginia Rail",conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_breeding("Pied-billed Grebe",conservation_polygon,ACAD_clean)
+
 
 estimate_pop_conservation_area_breeding( species,conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Redhead",conservation_polygon,ACAD_clean)
@@ -329,6 +334,7 @@ estimate_pop_conservation_area_breeding("Marsh Wren",conservation_polygon,ACAD_c
 estimate_pop_conservation_area_breeding("Eared Grebe",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Virginia Rail",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_breeding("Bank Swallow",conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_breeding("Barn Swallow",conservation_polygon,ACAD_clean)
 
 
 estimate_pop_conservation_area_americas(species,conservation_polygon,ACAD_clean)
@@ -345,7 +351,9 @@ estimate_pop_conservation_area_global("American Bittern",conservation_polygon,AC
 estimate_pop_conservation_area_global( "Sora",conservation_polygon, ACAD_clean)
 estimate_pop_conservation_area_global("Eared Grebe",conservation_polygon,ACAD_clean)
 estimate_pop_conservation_area_global("Bank Swallow",conservation_polygon,ACAD_clean)
-estimate_pop_conservation_area_global("Belted Kingfisher",conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_global("Barn Swallow",conservation_polygon,ACAD_clean)
+estimate_pop_conservation_area_global("American Wigeon",conservation_polygon,ACAD_clean)
+
 
 # Here are some problem that we will encounter
 
@@ -353,12 +361,11 @@ estimate_pop_conservation_area_global("Belted Kingfisher",conservation_polygon,A
 estimate_pop_conservation_area_breeding("American Bittern",conservation_polygon,ACAD_clean) #
 
 
+
 # Sandbox -----------------------------------------------------------------
 # Here is a rational, we are using data from breeding population so the breeding estimate is restricted to the more precise information we have which it is US and Canada 
 # For the other seasons we will use the one that bets describe the species distribution, America or Global for computational process
 
-conservation_polygon <- 
-  st_read("data/conservation_polygon/BurnsBog/Burns Bog Ecological Conservancy Area.kmz")
 
 #### Rain check
 #Calculate the percentage of population in Northamerica based in ebird4
@@ -420,7 +427,7 @@ total <- global(layer1, fun = "sum", na.rm = TRUE)
 # THE WHOLE CODE – STEP BY STEP
 # ================================================================
 # NO NEED TO RUN THIS PART OF THE CODE
-# THIS IS IF YOU ARE CURIOS ON INDIVIDUAL DECISIONS TAKEN AND STEP BY STEP
+# THIS IS IF YOU ARE CURIOuS ON INDIVIDUAL DECISIONS TAKEN AND STEP BY STEP
 # ================================================================
 # 0) SETUP
 # ================================================================
