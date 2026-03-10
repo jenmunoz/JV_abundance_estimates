@@ -20,12 +20,21 @@
 # ================================================================
 
 # Install packages (run once only if needed)
-install.packages(c(
+# List of packages needed
+packages <- c(
   "tidyverse", "janitor", "glue", "fs", "png",
   "viridis", "scales", "fields", "readr",
   "rnaturalearth", "sf", "raster", "ebirdst",
   "rmapshaper", "terra"
-))
+)
+
+# Identify which ones are not yet installed
+new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+
+# Install only the missing ones
+if(length(new_packages) >0) {
+  install.packages(new_packages)
+}
 
 # Load libraries
 library(dplyr)

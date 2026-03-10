@@ -1,0 +1,138 @@
+NAWCA_species,global_or_american_predominantly,ACAD,callaghan_paper,PIF
+American Avocet,Americas,Yes,Yes,No
+American Bittern,Americas,Yes,Yes,No
+American Black Duck,Americas,Yes,Yes,No
+American Coot,Americas,Yes,Yes,No
+American White Pelican,Americas,Yes,Yes,No
+American Wigeon,Americas,Yes,Yes,No
+American Woodcock,Americas,Yes,Yes,No
+Ancient Murrelet,Global,Yes,Yes,No
+Bank Swallow,Global,Yes,Yes,Yes
+Barn Owl,Global,Yes,Yes,Yes
+Barn Swallow,Global,Yes,Yes,Yes
+Barrow's Goldeneye,Americas,Yes,Yes,No
+Belted Kingfisher,Americas,Yes,Yes,Yes
+Black Scoter,Global,Yes,Yes,No
+Black Swift,Americas,Yes,Yes,Yes
+Black Tern,Global,Yes,Yes,No
+Black-bellied Plover,Global,Yes,Yes,No
+Black-billed Cuckoo,Americas,Yes,Yes,Yes
+Black-crowned Night Heron,Global,Yes,Yes,No
+Blue-winged Teal,Americas,Yes,Yes,No
+Bobolink,Americas,Yes,Yes,Yes
+Brant,Global,Yes,Yes,No
+Brewer's Blackbird,Americas,Yes,Yes,Yes
+Buff-breasted Sandpiper,Americas,Yes,Yes,No
+Bufflehead,Americas,Yes,Yes,No
+Cackling Goose,Global,Yes,Yes,No
+California Gull,Americas,Yes,Yes,No
+Canada Goose,Americas,Yes,Yes,No
+Canada Warbler,Americas,Yes,Yes,Yes
+Canvasback,Americas,Yes,Yes,No
+Cassin's Auklet,Americas,Yes,Yes,No
+Chimney Swift,Americas,Yes,Yes,Yes
+Cinnamon Teal,Americas,Yes,Yes,No
+Clark's Grebe,Americas,Yes,Yes,No
+Common Eider,Global,Yes,Yes,No
+Common Gallinule,Americas,Yes,Yes,No
+Common Goldeneye,Global,Yes,Yes,No
+Common Loon,Global,Yes,Yes,No
+Common Merganser,Global,Yes,Yes,No
+Common Murre,Global,Yes,Yes,No
+Common Nighthawk,Americas,Yes,Yes,Yes
+Common Yellowthroat,Americas,Yes,Yes,Yes
+Connecticut Warbler,Americas,Yes,Yes,Yes
+Dunlin,Global,Yes,Yes,No
+Emperor Goose,Global,Yes,Yes,No
+Gadwall,Global,Yes,Yes,No
+Great Blue Heron,Americas,Yes,Yes,No
+Greater Scaup,Global,Yes,Yes,No
+Greater White-fronted Goose,Global,Yes,Yes,No
+Greater Yellowlegs,Americas,Yes,Yes,No
+Green-winged Teal,Americas,Yes,Yes,No
+Harlequin Duck,Global,Yes,Yes,No
+Hooded Merganser,Americas,Yes,Yes,No
+Horned Grebe,Global,Yes,Yes,No
+Hudsonian Godwit,Americas,Yes,Yes,No
+Hudsonian Whimbrel,Americas,Yes,Yes,No
+Killdeer,Americas,Yes,Yes,No
+King Eider,Global,Yes,Yes,No
+Least Bittern,Americas,Yes,Yes,No
+Least Sandpiper,Americas,Yes,Yes,No
+Lesser Scaup,Americas,Yes,Yes,No
+Lesser Yellowlegs,Americas,Yes,Yes,No
+Long-billed Curlew,Americas,Yes,Yes,No
+Long-billed Dowitcher,Americas,Yes,Yes,No
+Long-tailed Duck,Global,Yes,Yes,No
+Mallard,Global,Yes,Yes,No
+Marbled Godwit,Americas,Yes,Yes,No
+Marbled Murrelet,Americas,Yes,Yes,No
+Masked Duck,Americas,Yes,Yes,No
+Mexican Duck,Americas,Yes,Yes,No
+Mottled Duck,Americas,Yes,Yes,No
+Northern Goshawk,Global,Yes,Yes,Yes
+Northern Harrier,Americas,Yes,Yes,Yes
+Northern Pintail,Global,Yes,Yes,No
+Northern Rough-winged Swallow,Americas,Yes,Yes,Yes
+Northern Shoveler,Global,Yes,Yes,No
+Olive-sided Flycatcher,Americas,Yes,Yes,Yes
+Pectoral Sandpiper,Global,Yes,Yes,No
+Pelagic Cormorant,Global,Yes,Yes,No
+Piping Plover,Americas,Yes,Yes,No
+Red Knot,Global,Yes,Yes,No
+Red-breasted Merganser,Global,Yes,Yes,No
+Red-necked Phalarope,Global,Yes,Yes,No
+Redhead,Americas,Yes,Yes,No
+Ring-necked Duck,Americas,Yes,Yes,No
+Ruddy Duck,Americas,Yes,Yes,No
+Ruddy Turnstone,Global,Yes,Yes,No
+Rufous Hummingbird,Americas,Yes,Yes,Yes
+Rusty Blackbird,Americas,Yes,Yes,Yes
+Sanderling,Global,Yes,Yes,No
+Semipalmated Plover,Americas,Yes,Yes,No
+Semipalmated Sandpiper,Americas,Yes,Yes,No
+Short-billed Dowitcher,Americas,Yes,Yes,No
+Short-eared Owl,Global,Yes,Yes,Yes
+Solitary Sandpiper,Americas,Yes,Yes,No
+Sora,Americas,Yes,Yes,No
+Spectacled Eider,Global,Yes,Yes,No
+Spotted Sandpiper,Americas,Yes,Yes,No
+Steller's Eider,Global,Yes,Yes,No
+Stilt Sandpiper,Americas,Yes,Yes,No
+Surf Scoter,Americas,Yes,Yes,No
+Townsend's Warbler,Americas,Yes,Yes,Yes
+Trumpeter Swan,Americas,Yes,Yes,No
+Tundra Swan,Global,Yes,Yes,No
+Vaux's Swift,Americas,Yes,Yes,Yes
+Veery,Americas,Yes,Yes,Yes
+Virginia Rail,Americas,Yes,Yes,No
+Wandering Tattler,Global,Yes,Yes,No
+Western Grebe,Americas,Yes,Yes,No
+Western Gull,Americas,Yes,Yes,No
+Western Screech-Owl,Americas,Yes,Yes,Yes
+White-rumped Sandpiper,Americas,Yes,Yes,No
+White-winged Scoter,Americas,Yes,Yes,No
+Willet,Americas,Yes,Yes,No
+Willow Flycatcher,Americas,Yes,Yes,Yes
+Wilson's Phalarope,Americas,Yes,Yes,No
+Wilson's Warbler,Americas,Yes,Yes,Yes
+Wood Duck,Americas,Yes,Yes,No
+Yellow Rail,Americas,Yes,Yes,No
+Yellow-breasted Chat,Americas,Yes,Yes,Yes
+Yellow-headed Blackbird,Americas,Yes,Yes,Yes
+American Golden Plover,Americas,No,No,No
+Baird’s Sandpiper,Americas,No,Yes,No
+Black-bellied Whistling Duck,Americas,No,No,No
+Bonaparte’s Gull,Americas,No,Yes,No
+Forster’s Tern,Americas,No,Yes,No
+Franklin’s Gull,Americas,No,Yes,No
+Fulvous Whistling Duck,Global,No,No,No
+Hawaiian Duck,Americas,No,Yes,No
+Hawaiian Goose,Americas,No,Yes,No
+Laysan Duck,Americas,No,Yes,No
+Le Conte’s Sparrow,Americas,No,No,No
+Lesser Snow Goose,Global,No,Yes,No
+Lincoln’s Sparrow,Americas,No,Yes,No
+Mew Gull / Short-billed Gull,Americas,No,Yes,No
+Nelson’s Sparrow,Americas,No,Yes,No
+Wilson’s Snipe,Americas,No,Yes,No
