@@ -3,7 +3,8 @@
 ###_###_####_###_###_###_###_###_###_###_###_###_###_###_###_###_###_
 ##
 ## Objective:
-## Check for which species of interest we have eBird Status & Trends data.
+## Check for which species of interest we have (1) eBird Status & Trends data, (2) BAM
+## density models, (3) CGAM density models, (4) DUC density models.
 ## This includes verifying that taxonomy between datasets is properly matched.
 ##
 ## Workflow:
@@ -22,12 +23,20 @@
 # ================================================================
 
 # Install packages (run once only if needed)
-install.packages(c(
+packages <- c(
   "tidyverse", "janitor", "glue", "fs", "png",
   "viridis", "scales", "fields", "readr",
   "rnaturalearth", "sf", "raster", "ebirdst",
-  "rmapshaper", "terra"
-))
+  "rmapshaper", "terra", "BAMexploreR"
+)
+
+# Identify which ones are not yet installed
+new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+
+# Install only the missing ones
+if(length(new_packages) >0) {
+  install.packages(new_packages)
+}
 
 # Load libraries
 library(dplyr)
@@ -39,6 +48,7 @@ library(ebirdst)
 library(rmapshaper)
 library(terra)
 library(ggplot2)
+library(BAMexploreR)
 
 # ================================================================
 # 1) DATA
@@ -60,7 +70,7 @@ nawca_list <- read.csv(
 unique(nawca_list$ACAD)
 
 # ================================================================
-# 2) CHECK FOR WHICH SPECIES WE HAVE EBIRD DATA
+# 2) CHECK FOR WHICH SPECIES WE HAVE EBIRD, BAM, CGAM, AND DUC MODELS FOR
 # ================================================================
 
 # Select key fields from eBird runs table
@@ -74,11 +84,32 @@ ebirdst_runs_selected <- ebirdst_runs %>%
     breeding_quality
   )
 
+#create simplified eBird table to combine with NAWCA species table below
+eBirdspp <- data.frame(common_name = ebirdst_runs_selected$common_name,
+                       eBird = "Yes")
+
+#get list of species for BAM v4 and v5
+bam <- data.frame(common_name = bam_spp_list("v4", "commonName"),
+                     BAMv4 = "Yes") %>%
+  left_join(data.frame(common_name = bam_spp_list("v5", "commonName"),
+                       BAMv5 = "Yes")) %>%
+  mutate(BAMv5 = ifelse(is.na(BAMv5), "No", BAMv5))
+
+#create list of species for CGAM models
+cgam <- data.frame(common_name = c("Baird's Sparrow", "Bobolink", "Brewer's Sparrow", "Chestnut-collared Longspur", "Clay-colored Sparrow", 
+                                   "Eastern Kingbird", "Grasshopper Sparrow", "Horned Lark", "Lark Bunting", "Long-billed Curlew", "LeConte's Sparrow",
+                                   "Loggerhead Shrike", "Marbled Godwit", "Savannah Sparrow", "Sedge Wren", "Sprague's Pipit", "Thick-billed Longspur", 
+                                   "Upland Sandpiper", "Vesper Sparrow", "Western Kingbird", "Western Meadowlark", "Willet"),
+                   CGAMv1 = "Yes")
+duc <- data.frame(common_name = c("Green-winged Teal", "American Wigeon", "Blue-winged Teal", "Canvasback", "Gadwall", "Mallard", "Northern Pintail", "Redhead", "Lesser Scaup"),
+                  DUC = "Yes")
+
+
 # View full list if needed
 # View(ebirdst_runs_selected)
 
 # ================================================================
-# 3) MATCH NAWCA SPECIES WITH EBIRD DATA
+# 3) MATCH NAWCA SPECIES WITH DIFFERENT MODEL SOURCES
 # ================================================================
 
 # List of NAWCA species
@@ -90,20 +121,42 @@ nawca_species <- nawca_list %>%
     PIF
   )
 
+#join species list for each model type with nawca species list
+nawca_species_models <- left_join(nawca_species, eBirdspp) %>%
+  left_join(bam) %>%
+  left_join(cgam) %>%
+  left_join(duc) %>%
+  mutate(across(everything(), ~coalesce(.x, "No")))
+
 # Match NAWCA species to eBird data
 match_nawca_species_ebird <- nawca_species %>%
-  left_join(ebirdst_runs_selected, by = "common_name")
+  left_join(ebirdst_runs_selected)
 
 View(match_nawca_species_ebird)
 
 # ================================================================
-# 4) IDENTIFY SPECIES WITHOUT EBIRD DATA
+# 4) IDENTIFY SPECIES WITH NO POPULATION ESTIMATE AND/OR MODEL SOURCE
 # ================================================================
+
+missing_species_models <- nawca_species_models %>%
+  filter(if_all(all_of(c("eBird", "BAMv4", "BAMv5", "CGAMv1", "DUC")), ~ .x == "No")) %>%
+  pull(common_name)
+
+missing_species_models #only 3
+
+missing_species_pop <- nawca_species_models %>%
+  filter(if_all(all_of(c("ACAD", "PIF")), ~ .x == "No")) %>%
+  pull(common_name)
+
+missing_species_pop
 
 missing_species_nawca_ebird <- match_nawca_species_ebird %>%
   filter(is.na(species_code)) %>%
   dplyr::select(common_name, scientific_name) %>%
   mutate(ebird_data = "no")
+
+#export updated NAWCA species table with model sources
+
 
 # ------------------------------------------------
 # List of species without eBird Status & Trends data
