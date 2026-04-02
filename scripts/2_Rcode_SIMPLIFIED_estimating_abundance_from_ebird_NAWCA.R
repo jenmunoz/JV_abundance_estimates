@@ -62,14 +62,14 @@ library(ggplot2)
 # Request key: https://ebird.org/st/request
 set_ebirdst_access_key("########")  # replace with your ebird KEY 
 
-getwd()              # Working directory
+wd <- getwd()              # Working directory
 ebirdst_version()    # Data version (e.g., 2022)
 ebirdst_data_dir()   # List the directory where you will be saving the ebird rasters
 
 # Set data download directory (session only), if you want to have it on a speciefic folder
 Sys.setenv(
   EBIRDST_DATA_DIR =
-    "C:/Users/jmunoz/Local_BirdsCanada/1_JV_science_coordinator_role_local/1_Projects/14_relativetoabsolute_abundance/JV_abundance_estimates/data/species_layers")
+    file.path(wd, "data/eBirdRasters"))
 
 ebirdst_data_dir()
 
@@ -101,15 +101,15 @@ load_raster()
 # ================================================================
 # List of species from NAWCA priorities or a list of species of interest 
 View(nawca_list)
-nawca_list<- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE) %>%
+nawca_list <- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE) %>%
   as_tibble() %>% 
   mutate(common_name=NAWCA_species) %>% 
   filter(ACAD=="Yes")
 
-species_interest_list<-nawca_list$common_name
+species_interest_list <- nawca_list$common_name
 
 # Download data for the list of species 
-# NOTE that we are downloading and using the mean abundance seasonal, we coudl also use the MAX!
+# NOTE that we are downloading and using the mean abundance seasonal, we could also use the MAX!
 
 for (species in species_interest_list) {
   cat("/n>>> Downloading:", species, "/n")
