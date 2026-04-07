@@ -149,9 +149,9 @@ pif_reg <- read_excel("data/PopEsts/PopEsts_BCRxProvState_2020_04_24.xlsx") %>%
   dplyr::select(english_name, bcr, province_state_territory, country, population_estimate) %>% #selection needed columns
   dplyr::rename(common_name = english_name, #create shorter names
                 prov_state = province_state_territory,
-                pif_reg = population_estimate) %>%
+                pop_est = population_estimate) %>%
   mutate(stratum = paste(bcr, prov_state, sep = "_")) %>%
-  select(common_name, stratum, country, pif_reg)
+  select(common_name, stratum, country, pop_est)
 
 # download.file("https://api.bcr.eco/pif/2023/ped/global/download",
 #               destfile = "data/PopEsts/PopEsts_Global_2020_04_29.xlsx",
@@ -181,7 +181,7 @@ usfws <- read.csv("data/PopEsts/WBPHS_Traditional_Area_Stratum_Estimates/wbphs_t
                                     "SCOT" ~ "COSC",
                                     .default = survey_species)) %>%
   filter(survey_species != "POND" & survey_year == 2025) %>%
-  rename(fws_reg = estimate)
+  rename(pop_est = estimate)
 
 
 spCodes <- read.csv("data/PopEsts/IBP-AOS-list25.csv") %>%
@@ -191,7 +191,7 @@ spCodes <- read.csv("data/PopEsts/IBP-AOS-list25.csv") %>%
 
 usfws_exp <- usfws %>%
   left_join(spCodes) %>%
-  select(common_name, stratum, fws_reg)
+  select(common_name, stratum, pop_est)
 
 file.remove(c("data/PopEsts/usfws_waterfowl_pops_2025.zip", "data/birdCodes.zip"))
 
