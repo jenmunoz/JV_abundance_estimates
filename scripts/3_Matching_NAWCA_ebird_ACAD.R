@@ -261,6 +261,14 @@ bcr <- st_read(dsn = "data/spatial/c464597e-d654-494e-b6d1-8bafde6b83c8.gdb", la
   select(stratum, COUNTRY, SHAPE_Area) %>%
   st_transform(crs = bamCRS)
 
+#crop to exclude Hawaii
+bb <- st_bbox(bcr)
+bb["xmin"] <- -5000000
+bb_poly <- st_as_sfc(bb)
+bcr <- st_intersection(bcr, bb_poly)
+plot(bcr)
+
+
 #USFWS Traditional Survey Area Strata
 #ONLY RUN THIS SECTION ONCE
 ############################
@@ -287,7 +295,7 @@ cgam <- rast("data/spatial/CGAM_ex.tif") %>%
 
 #export all layers to a single gpkg file
 dir.create("data/spatial/modified")
-st_write(bcr, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg", overwrite = T)
+st_write(bcr, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg")
 st_write(bamv4, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv4", append = T)
 st_write(bamv5, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv5", append = T)
 st_write(wfStrata, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "usfws", append = T)
