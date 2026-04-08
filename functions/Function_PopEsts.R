@@ -23,10 +23,10 @@ sand <- st_read(dsn = "data/test/SAND.gpkg", layer = "SAND_boundary")
 atwr <- st_read(dsn = "data/test/ATWR.gpkg", layer = "ATWR_boundary")
 polys <- list(sand, atwr)
 
-species <- list("Savannah Sparrow", "White-troated Sparrow", "Mallard")
+species <- list("Savannah Sparrow", "White-throated Sparrow", "Mallard")
 
 sp <- species[[1]]
-pol <- polys[[2]]
+pol <- polys[[1]]
 # ------------------------------------------------------------
 # 1. List of required packages
 # ------------------------------------------------------------
@@ -56,7 +56,7 @@ check_packages <- function(pkgs) {
 # ------------------------------------------------------------
 # 3. Estimate populations function
 # ------------------------------------------------------------
-popEsts <- function(species, polys, season = "breeding") {
+popEsts <- function(species, polys, breeding = TRUE, nonbreeding = TRUE) {
   #load source tables for distribution models and population estimates
   sdmSources <- read.csv("data/sdm_speciesList.csv")
   peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
@@ -67,8 +67,8 @@ popEsts <- function(species, polys, season = "breeding") {
     sdm <- sdmSources %>%
       dplyr::filter(common_name == sp)
     
-    ################################################
     #eBird population estimation workflow
+    ################################################
     if(sdm$eBird == "Yes") {
       #create and set directory for eBird rasters
       dir.create("data/spatial/eBirdRasters", showWarnings = FALSE)
@@ -94,13 +94,15 @@ popEsts <- function(species, polys, season = "breeding") {
       peSp <- peSources %>%
         dplyr::filter(common_name == sp)
       
+      
+      #Breeding Season Start
       ####################################################################
-      #Breeding Season
-      if(season = "breeding") {
+      if(breeding = T) {
         #extract breeding season raster
-        abd <- abd[["breeding"]]
+        abd_breeding <- abd[["breeding"]]
+        
+        #Regional Pop Ests Start
         #################################################
-        #If regional population estimates are available
         if(peSp$pif_reg == "Yes" | peSp$fws_reg == "Yes") {
           if(peSp$pif_reg == "Yes") {
             #load regional PIF estimates
@@ -123,7 +125,7 @@ popEsts <- function(species, polys, season = "breeding") {
           #1. query regional strata that intersect with polygons. These strata will be used to crop eBird relative abundance surfaces
           #2. extract regional population estimates for those strata
           #3. use eBird relative abundace surface to estimate population size of conservation polygons
-          cropPolys <- lapply(polys, FUN = function(pol) {
+          pop_est_breeding <- lapply(polys, FUN = function(pol) {
             #1. query regional strata that intersect
             poly_prj <- sf::st_transform(pol, crs(peStrat))
             #determine intersecting strata and remove slivers
@@ -144,59 +146,99 @@ popEsts <- function(species, polys, season = "breeding") {
             #3. estimate population size
             #match projections, crop and mask eBird surface with pop est strata
             strata_v <- terra::vect(strata)
-            strata_prj <- terra::project(strata_v, crs(abd))
-            abd_crop <- terra::crop(abd, strata_prj)
-            abd_prj <- terra::project(abd_crop, crs(strata_v))
-            abd_strata <- terra::mask(abd_prj, strata_v)
+            strata_prj <- terra::project(strata_v, crs(abd_breeding))
+            abd_strata <- terra::crop(abd_breeding, strata_prj) %>%
+              terra::mask(mask = strata_prj)
             
             total_strata <- terra::global(abd_strata, fun = "sum", na.rm = TRUE)
             prop_strata <- abd_strata / total_strata$sum
-            poly_v <- terra::vect(poly_prj)
+            
+            poly_v <- terra::vect(poly_prj) %>%
+              project(crs(prop_strata))
+            
             prop_poly <- terra::crop(prop_strata, poly_v) %>%
               terra::mask(mask = poly_v)
             prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
             
-            abundance_est <- prop_poly_sum$sum * pepoly  # Compute absolute abundance
+            abundance_est <- prop_poly_sum * pepoly  # Compute absolute abundance
             return(abundance_est)
           })
-          
-          #extract population estimates for regional strata that intersect with each polygon
-          pop_size <- lapply(cropPolys, function(x) {
-            petmp <- pe %>%
-              filter(stratum %in% x$stratum) %>%
-              pull(pop_est)
-            if(petmp > 1) {
-              petmp <- sum(petmp)
-            }
-            return(petmp)
-          })
-          
-          #calculate populations size for each polygon
-          polyEsts <- lapply()
-          
-          abd_na <- mask(abd, northamerica)
-          total_na <- global(abd_na, fun = "sum", na.rm = TRUE)
-          
-          prop_na <- abd_na / total_na$sum
-          
         }
+        #Regional Pop Ests End
+        ######################################################
         
-        #If no regional estimates available, use ACAD estimates
+        #ACAD Canada/US estimates Start
+        ######################################################
         if(peSp$acad == "Yes" & peSp$pif_reg == "No" & peSp$fws_reg == "No") {
           #load ACAD population estimates
           pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
             dplyr::filter(common_name == sp)
           
           #load polygon for Canada/USA. Using pif_reg and manipulating to have only 1 stratum (Can/US)
-          peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg") %>%
+          canus <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg") %>%
             dplyr::mutate(stratum = "canus") %>%
             dplyr::group_by(stratum) %>%
             dplyr::summarize(geom = sf::st_union(geom))
+          
+          #match projections, crop and mask eBird surface with Canada/USA polygon
+          canus_v <- terra::vect(canus) #change to SpatVect
+          canus_prj <- terra::project(canus_v, crs(abd_breeding)) #project Canada/USA to match eBird before cropping
+          abd_canus <- terra::crop(abd_breeding, canus_prj) %>%
+            mask(mask = canus_prj) #crop and mask eBird to Canada/USA
+          
+          #estimate population size for polygons
+          total_canus <- global(abd_canus, fun = "sum", na.rm = TRUE)
+          prop_canus <- abd_canus / total_canus$sum
+          
+          pop_est_breeding <- lapply(polys, FUN = function(pol) {
+            poly_v <- pol %>%
+              sf::st_transform(crs = sf::st_crs(prop_canus)) %>%
+              terra::vect()
+            prop_poly <- terra::crop(prop_canus, poly_v) %>%
+              terra::mask(mask = poly_v)
+            prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
+            
+            abundance_est <- prop_poly_sum * pe$acad_uscan  # Compute absolute abundance
+            return(abundance_est)
+          })
         }
-        ######################################################
+        #ACAD Canada/US estimates End
+        #######################################################
+        
       }
-    ########################################################################
+      #Breeding season end
+      ###########################################################
       
+      #Non-breeding season Start
+      ###########################################################
+      if(nonbreeding = T) {
+        abd_nonbreed <- abd[[c("nonbreeding", "prebreeding_migration", "postbreeding_migration")]]
+        
+        if(peSp$acad == "Yes") {
+          #load ACAD population estimates
+          pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
+            dplyr::filter(common_name == sp)
+          
+          #estimate population size for polygons
+          total_global <- global(abd_nonbreed, fun = "sum", na.rm = TRUE)
+          prop_global <- abd_nonbreed / total_global$sum
+          
+          pop_est_nonbreed <- lapply(polys, FUN = function(pol) {
+            poly_v <- pol %>%
+              sf::st_transform(crs = sf::st_crs(prop_global)) %>%
+              terra::vect()
+            prop_poly <- terra::crop(prop_global, poly_v) %>%
+              terra::mask(mask = poly_v)
+            prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
+            
+            abundance_est <- prop_poly_sum * pe$acad_global  # Compute absolute abundance
+            return(abundance_est)
+          })
+        } else {stop("Species not found in ACAD database")}
+      }
+      
+      
+   
 
     }
     
