@@ -17,6 +17,9 @@ library(sf)
 library(dplyr)
 library(BAMexploreR)
 library(ebirdst)
+library(terra)
+library(osfr)
+
 
 st_layers("data/test/ATWR.gpkg")
 sand <- st_read(dsn = "data/test/SAND.gpkg", layer = "SAND_boundary")
@@ -34,7 +37,9 @@ required_pkgs <- c(
   "sf",      # for spatial functions
   "dplyr",   # for data manipulation
   "BAMexploreR",    # for raster/vector handling
-  "ebirdst"
+  "ebirdst",
+  "terra",
+  "osfr"
 )
 
 # ------------------------------------------------------------
@@ -69,7 +74,7 @@ popEsts <- function(species, polys) {
     sdm <- sdmSources %>%
       dplyr::filter(common_name == sp)
     
-    #eBird population estimation workflow
+    #eBird workflow
     ################################################
     if(sdm$eBird == "Yes") {
       cat("\t eBird relative abundance surfaces \n")
@@ -138,56 +143,71 @@ popEsts <- function(species, polys) {
           psource <- "USFWS"
         }
         
+        #determine if conservation polygons overlap with strata polygons
+        polyTest <- lapply(polys, function (x) {
+          poly_prj <- sf::st_transform(pol, crs(peStrat))
+          test <- st_within(poly_prj, st_union(peStrat), sparse = FALSE)
+          return(as.logical(test))
+        })
+        
+        #split polygons that overlap with regional strata and those that don't
+        polys_reg <- polys[unlist(polyTest)]
+        polys_canus <- polys[!unlist(polyTest)]
+        
         #1. query regional strata that intersect with polygons. These strata will be used to crop eBird relative abundance surfaces
         #2. extract regional population estimates for those strata
         #3. use eBird relative abundace surface to estimate population size of conservation polygons
-        pop_est_breeding <- lapply(polys, FUN = function(pol) {
-          #1. query regional strata that intersect
-          poly_prj <- sf::st_transform(pol, crs(peStrat))
-          #determine intersecting strata and remove slivers
-          suppressWarnings(ints <- sf::st_intersection(peStrat, poly_prj))
-          min_area <- units::set_units(3000000, "m^2") #using 3e6 m^2 as minimum area
-          ints <- ints[sf::st_area(ints) > min_area, ] 
-          strata <- peStrat %>%
-            dplyr::filter(stratum %in% ints$stratum)
-          
-          #2. extract population estimates
-          pepoly <- pe %>%
-            filter(stratum %in% strata$stratum) %>%
-            pull(pop_est)
-          if(pepoly > 1) {
-            pepoly <- sum(pepoly)
-          }
-          
-          #3. estimate population size
-          #match projections, crop and mask eBird surface with pop est strata
-          strata_v <- terra::vect(strata)
-          strata_prj <- terra::project(strata_v, crs(abd_breeding))
-          abd_strata <- terra::crop(abd_breeding, strata_prj) %>%
-            terra::mask(mask = strata_prj)
-          
-          total_strata <- terra::global(abd_strata, fun = "sum", na.rm = TRUE)
-          prop_strata <- abd_strata / total_strata$sum
-          
-          poly_v <- terra::vect(poly_prj) %>%
-            project(crs(prop_strata))
-          
-          prop_poly <- terra::crop(prop_strata, poly_v, snap = "near", mask = T)
-          prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
-          
-          abundance_est <- round(prop_poly_sum * pepoly, -2)  # Compute absolute abundance
-          abundance_est$season <- rownames(abundance_est)
-          abundance_est$popEstSource <- psource
-          return(abundance_est)
-        })
-        names(pop_est_breeding) <- names(polys)
-      }
-      #Regional Pop Ests End
+        if(length(polys_reg) > 0) {
+          pop_est_breeding <- lapply(polys_reg, FUN = function(pol) {
+            #1. query regional strata that intersect
+            poly_prj <- sf::st_transform(pol, crs(peStrat))
+            #determine intersecting strata and remove slivers
+            suppressWarnings(ints <- sf::st_intersection(peStrat, poly_prj))
+            min_area <- units::set_units(3000000, "m^2") #using 3e6 m^2 as minimum area
+            ints <- ints[sf::st_area(ints) > min_area, ] 
+            strata <- peStrat %>%
+              dplyr::filter(stratum %in% ints$stratum)
+            
+            #2. extract population estimates
+            pepoly <- pe %>%
+              filter(stratum %in% strata$stratum) %>%
+              pull(pop_est)
+            if(pepoly > 1) {
+              pepoly <- sum(pepoly)
+            }
+            
+            #3. estimate population size
+            #match projections, crop and mask eBird surface with pop est strata
+            strata_v <- terra::vect(strata)
+            strata_prj <- terra::project(strata_v, crs(abd_breeding))
+            abd_strata <- terra::crop(abd_breeding, strata_prj) %>%
+              terra::mask(mask = strata_prj)
+            
+            total_strata <- terra::global(abd_strata, fun = "sum", na.rm = TRUE)
+            prop_strata <- abd_strata / total_strata$sum
+            
+            poly_v <- terra::vect(poly_prj) %>%
+              project(crs(prop_strata))
+            
+            prop_poly <- terra::crop(prop_strata, poly_v, snap = "near", mask = T)
+            prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
+            
+            abundance_est <- round(prop_poly_sum * pepoly, -2)  # Compute absolute abundance
+            abundance_est$season <- rownames(abundance_est)
+            abundance_est$popEstSource <- psource
+            return(abundance_est)
+          })
+          names(pop_est_breeding) <- names(polys)
+        }
+        
+      }#Regional Pop Ests End
       ######################################################
       
       #ACAD Canada/US estimates Start
       ######################################################
-      if(peSp$acad == "Yes" & peSp$pif_reg == "No" & peSp$fws_reg == "No") {
+      if((peSp$acad == "Yes" & peSp$pif_reg == "No" & peSp$fws_reg == "No") | 
+         (peSp$acad == "Yes" & length(polys_reg) > 0)
+         ) {
         #load ACAD population estimates
         pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
           dplyr::filter(common_name == sp)
@@ -275,7 +295,7 @@ popEsts <- function(species, polys) {
                                  pop_est = NA)
       }#END OF eBIRD WORKFLOW
     
-    #BAM Population Estimation workflow
+    #BAM workflow
     if(sdm$BAMv4 == "Yes" | sdm$BAMv5 == "Yes") {
       cat("\t BAM density model \n")
       #Determine which version is available for given species. Use V5 if available
@@ -327,9 +347,58 @@ popEsts <- function(species, polys) {
                             pop_est = NA)
       }#END OF BAM WORKFLOW 
     
+    #CGAM Workflow
+    if(sdm$CGAMv1 == "Yes") {
+      cat("\t CGAM density model \n")
+      
+      #download CGAM raster for given species
+      cgamDir <- "data/spatial/cgamRasters"
+      dir.create(cgamDir, showWarnings = FALSE)
+      spCode <- read.csv("data/IBPSpeciesCodes.csv") %>%
+        dplyr::filter(COMMONNAME == sp) %>%
+        pull(SPEC)
+      
+      file <- osfr::osf_retrieve_node("csugd") %>%
+        osfr::osf_ls_files(pattern = spCode)
+      file_path <- file.path(cgamDir, file$name)
+      
+      if(!file.exists(file_path)) {
+        osfr::osf_download(file, path = cgamDir)
+      }
+      abd <- terra::rast(file_path)
+      
+      #estimate population size
+      pop_est_cgam <- lapply(polys, function(pol) {
+        poly_v <- terra::vect(pol) %>%
+          terra::project(crs(abd))
+        abd <- crop(abd, poly_v, snap = "near", mask = T)
+        abundance_est <- round(global(abd, fun = "sum", na.rm = TRUE), -2) %>%
+          rename(pop_est = sum) %>%
+          mutate(species = sp,
+                 season = "breeding",
+                 sdmSource = "CGAMv1",
+                 popEstSource = "CGAMv1")
+        return(abundance_est)
+      })
+      names(pop_est_cgam) <- names(polys)
+      
+      #combine CGAM results
+      cgamResults <- dplyr::bind_rows(pop_est_cgam, .id = "polyID") %>%
+        select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+        arrange(polyID)
+    } else {
+      cgamResults <- data.frame(species = NA,
+                               polyID = NA,
+                               sdmSource = NA,
+                               popEstSource = NA,
+                               season = NA,
+                               pop_est = NA)
+    } #END of CGAM Workflow
+    
     #combine results across data sources
     results[[sp]] <- rbind(ebirdResults,
-                           bamResults) %>%
+                           bamResults,
+                           cgamResults) %>%
       filter(rowSums(!is.na(.)) > 0) %>% #remove rows with all NAs
       dplyr::arrange(polyID, season, sdmSource)
   } #END OF SPECIES LOOP
