@@ -144,7 +144,7 @@ popEsts <- function(species, polys) {
         }
         
         #determine if conservation polygons overlap with strata polygons
-        polyTest <- lapply(polys, function (x) {
+        polyTest <- lapply(polys, function (pol) {
           poly_prj <- sf::st_transform(pol, crs(peStrat))
           test <- st_within(poly_prj, st_union(peStrat), sparse = FALSE)
           return(as.logical(test))
@@ -158,7 +158,7 @@ popEsts <- function(species, polys) {
         #2. extract regional population estimates for those strata
         #3. use eBird relative abundace surface to estimate population size of conservation polygons
         if(length(polys_reg) > 0) {
-          pop_est_breeding <- lapply(polys_reg, FUN = function(pol) {
+          pop_est_breeding_reg <- lapply(polys_reg, FUN = function(pol) {
             #1. query regional strata that intersect
             poly_prj <- sf::st_transform(pol, crs(peStrat))
             #determine intersecting strata and remove slivers
@@ -197,7 +197,7 @@ popEsts <- function(species, polys) {
             abundance_est$popEstSource <- psource
             return(abundance_est)
           })
-          names(pop_est_breeding) <- names(polys)
+          names(pop_est_breeding_reg) <- names(polys_reg)
         }
         
       }#Regional Pop Ests End
@@ -206,17 +206,23 @@ popEsts <- function(species, polys) {
       #ACAD Canada/US estimates Start
       ######################################################
       if((peSp$acad == "Yes" & peSp$pif_reg == "No" & peSp$fws_reg == "No") | 
-         (peSp$acad == "Yes" & length(polys_reg) > 0)
-         ) {
+         (peSp$acad == "Yes" & length(polys_canus) > 0)) {
+        
+        if(peSp$acad == "Yes" & length(polys_canus) > 0) {
+          polys_tmp <- polys_canus
+          }  else {polys_tmp <- polys}
+        
         #load ACAD population estimates
         pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
           dplyr::filter(common_name == sp)
         
         #load polygon for Canada/USA. Using pif_reg and manipulating to have only 1 stratum (Can/US)
+        invisible(capture.output({
         canus <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg") %>%
           dplyr::mutate(stratum = "canus") %>%
           dplyr::group_by(stratum) %>%
           dplyr::summarize(geom = sf::st_union(geom))
+        }))
         
         #match projections, crop and mask eBird surface with Canada/USA polygon
         canus_v <- terra::vect(canus) #change to SpatVect
@@ -227,7 +233,7 @@ popEsts <- function(species, polys) {
         total_canus <- global(abd_canus, fun = "sum", na.rm = TRUE)
         prop_canus <- abd_canus / total_canus$sum
         
-        pop_est_breeding <- lapply(polys, FUN = function(pol) {
+        pop_est_breeding_canus <- lapply(polys_tmp, FUN = function(pol) {
           poly_v <- pol %>%
             sf::st_transform(crs = sf::st_crs(prop_canus)) %>%
             terra::vect()
@@ -239,12 +245,23 @@ popEsts <- function(species, polys) {
           abundance_est$popEstSource <- "ACAD Can/USA"
           return(abundance_est)
         })
-        names(pop_est_breeding) <- names(polys)
+        names(pop_est_breeding_canus) <- names(polys_tmp)
+        
+        
+        if(exists("pop_est_breeding_reg")) {
+          pop_est_breeding <- c(pop_est_breeding_reg,pop_est_breeding_canus)
+        } else {pop_est_breeding <- pop_est_breeding_canus}
+      }#ACAD Canada/US estimates End
+      
+      #combine results with regional and canus estimates if both exists for a species (likely only waterfowl when one polygon is within USFWS strata and one is without)
+      if (exists("pop_est_breeding_reg") && exists("pop_est_breeding_canus")) {
+        pop_est_breeding <- c(pop_est_breeding_reg, pop_est_breeding_canus)
+      } else if (exists("pop_est_breeding_reg")) {
+        pop_est_breeding <- pop_est_breeding_reg
+      } else if (exists("pop_est_breeding_canus")) {
+        pop_est_breeding <- pop_est_breeding_canus
       }
-      #ACAD Canada/US estimates End
-      #######################################################
-      #Breeding season end
-      ###########################################################
+
       
       #Non-breeding season Start
       ###########################################################
@@ -401,6 +418,12 @@ popEsts <- function(species, polys) {
                            cgamResults) %>%
       filter(rowSums(!is.na(.)) > 0) %>% #remove rows with all NAs
       dplyr::arrange(polyID, season, sdmSource)
+    #clear environment and RAM before running next species
+    keep <- c("results", "sdmSources", "peSources")
+    rm(list = setdiff(ls(), keep),
+       envir = environment())
+    invisible(capture.output({gc()}))
+    
   } #END OF SPECIES LOOP
   #combine results across species
   results <- do.call(rbind, results)
@@ -415,7 +438,8 @@ final <- do.call(rbind, test)
 rownames(final) <- NULL
 
 
-
+sdmSources <- read.csv("data/sdm_speciesList.csv")
+peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
 #load population estimate tables and associated polygons
 usfws <- read.csv("data/PopEsts/modified/usfws.csv")
 acad <- read.csv("data/PopEsts/modified/acad.csv")
