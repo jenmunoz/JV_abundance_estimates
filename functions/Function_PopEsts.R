@@ -262,6 +262,8 @@ popEsts <- function(species, polys) {
         pop_est_breeding <- pop_est_breeding_canus
       }
 
+      #remove unneeded polygon lists to save memory
+      rm(polys_reg, polys_canus, polys_tmp)
       
       #Non-breeding season Start
       ###########################################################
@@ -314,6 +316,15 @@ popEsts <- function(species, polys) {
     
     #BAM workflow
     if(sdm$BAMv4 == "Yes" | sdm$BAMv5 == "Yes") {
+      
+      #confirm that conservation polygons overlap with BAM AOI
+      
+      polyTest <- lapply(polys, function (pol) {
+        poly_prj <- sf::st_transform(pol, crs(peStrat))
+        test <- st_within(poly_prj, st_union(peStrat), sparse = FALSE)
+        return(as.logical(test))
+      })
+      
       cat("\t BAM density model \n")
       #Determine which version is available for given species. Use V5 if available
       if(sdm$BAMv5 == "Yes") {
