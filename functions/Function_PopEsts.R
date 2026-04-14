@@ -19,7 +19,7 @@ library(BAMexploreR)
 library(ebirdst)
 library(terra)
 library(osfr)
-
+library(purrr)
 
 st_layers("data/test/ATWR.gpkg")
 sand <- st_read(dsn = "data/test/SAND.gpkg", layer = "SAND_boundary")
@@ -28,7 +28,7 @@ polys <- list("SAND" = sand, "ATWR" = atwr)
 
 species <- list("Savannah Sparrow", "White-throated Sparrow", "Mallard")
 
-sp <- species[[3]]
+sp <- species[[2]]
 pol <- polys[[1]]
 # ------------------------------------------------------------
 # 1. List of required packages
@@ -39,7 +39,8 @@ required_pkgs <- c(
   "BAMexploreR",    # for raster/vector handling
   "ebirdst",
   "terra",
-  "osfr"
+  "osfr",
+  "purrr"
 )
 
 # ------------------------------------------------------------
@@ -66,6 +67,13 @@ popEsts <- function(species, polys) {
   sdmSources <- read.csv("data/sdm_speciesList.csv")
   peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
   
+  #create function to determine if conservation polygons overlap with strata polygons
+  polyOverlap <- function(pol) {
+    poly_prj <- sf::st_transform(pol, crs(peStrat))
+    test <- st_intersects(poly_prj, st_union(peStrat), sparse = FALSE)
+    return(as.logical(test))
+  }
+  
   #loop through species and estimate population size for all available data sources
   results <- list()
   for (sp in species) {
@@ -74,8 +82,9 @@ popEsts <- function(species, polys) {
     sdm <- sdmSources %>%
       dplyr::filter(common_name == sp)
     
+    #--------------------------------------
     #eBird workflow
-    ################################################
+    #--------------------------------------
     if(sdm$eBird == "Yes") {
       cat("\t eBird relative abundance surfaces \n")
       #create and set directory for eBird rasters
@@ -142,13 +151,8 @@ popEsts <- function(species, polys) {
           #set population estimate source for export later
           psource <- "USFWS"
         }
-        
-        #determine if conservation polygons overlap with strata polygons
-        polyTest <- lapply(polys, function (pol) {
-          poly_prj <- sf::st_transform(pol, crs(peStrat))
-          test <- st_within(poly_prj, st_union(peStrat), sparse = FALSE)
-          return(as.logical(test))
-        })
+      
+        polyTest <- purrr::map(polys, polyOverlap)
         
         #split polygons that overlap with regional strata and those that don't
         polys_reg <- polys[unlist(polyTest)]
@@ -205,12 +209,12 @@ popEsts <- function(species, polys) {
       
       #ACAD Canada/US estimates Start
       ######################################################
-      if((peSp$acad == "Yes" & peSp$pif_reg == "No" & peSp$fws_reg == "No") | 
-         (peSp$acad == "Yes" & length(polys_canus) > 0)) {
-        
-        if(peSp$acad == "Yes" & length(polys_canus) > 0) {
-          polys_tmp <- polys_canus
-          }  else {polys_tmp <- polys}
+      use_canus <- peSp$acad == "Yes" && length(polys_canus) > 0
+      condition <- (peSp$acad == "Yes" && peSp$pif_reg == "No" && peSp$fws_reg == "No") ||
+        use_canus
+
+      if(condition) {
+        polys_tmp <- if(use_canus) {polys_canus} else {polys}
         
         #load ACAD population estimates
         pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
@@ -263,7 +267,7 @@ popEsts <- function(species, polys) {
       }
 
       #remove unneeded polygon lists to save memory
-      rm(polys_reg, polys_canus, polys_tmp)
+      rm(list = intersect(c("polys_reg", "polys_canus", "polys_tmp"), ls()))
       
       #Non-breeding season Start
       ###########################################################
@@ -314,113 +318,128 @@ popEsts <- function(species, polys) {
                                  pop_est = NA)
       }#END OF eBIRD WORKFLOW
     
+    #--------------------------------------
     #BAM workflow
+    #--------------------------------------
+    #create blank database
+    bamResults <- data.frame(species = NA,
+                             polyID = NA,
+                             sdmSource = NA,
+                             popEstSource = NA,
+                             season = NA,
+                             pop_est = NA)
+    
     if(sdm$BAMv4 == "Yes" | sdm$BAMv5 == "Yes") {
+      #Determine which version is available for given species. Use V5 if available
+      ver <- if(sdm$BAMv5 == "Yes") {"v5"} else {"v4"}
       
       #confirm that conservation polygons overlap with BAM AOI
+      invisible(capture.output({
+        peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = paste0("bam", ver))
+      }))
+      polyTest <- purrr::map(polys, polyOverlap)
+      polys_tmp <- polys[unlist(polyTest)]
       
-      polyTest <- lapply(polys, function (pol) {
-        poly_prj <- sf::st_transform(pol, crs(peStrat))
-        test <- st_within(poly_prj, st_union(peStrat), sparse = FALSE)
-        return(as.logical(test))
-      })
-      
-      cat("\t BAM density model \n")
-      #Determine which version is available for given species. Use V5 if available
-      if(sdm$BAMv5 == "Yes") {
-        ver <- "v5"
-      } else {ver <- "v4"}
-      
-      #download BAM raster for given species
-      dir.create("data/spatial/bamRasters", showWarnings = FALSE)
-      #extract 4-letter code from species table and download BAM raster layer
-      spCode <- spp_tbl %>%
-        filter(commonName == sp) %>%
-        pull(speciesCode)
-      
-      #check if species raster is already downloaded, then download if needed
-      if(!file.exists(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))) {
-        abd <- bam_get_layer(spCode, ver, "data/spatial/bamRasters")
-      } else {
-        abd <- list()
-        abd[[spCode]] <- rast(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))
+      if(length(polys_tmp) > 0) {
+        cat("\t BAM density model \n")
+        #download BAM raster for given species
+        dir.create("data/spatial/bamRasters", showWarnings = FALSE)
+        #extract 4-letter code from species table and download BAM raster layer
+        spCode <- spp_tbl %>%
+          filter(commonName == sp) %>%
+          pull(speciesCode)
+        
+        #check if species raster is already downloaded, then download if needed
+        if(!file.exists(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))) {
+          abd <- bam_get_layer(spCode, ver, "data/spatial/bamRasters")
+        } else {
+          abd <- list()
+          abd[[spCode]] <- rast(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))
+        }
+        
+        #estimate population size for each polygon using existing function
+        pop_est_bam <- lapply(polys_tmp, function(pol) {
+          poly_v <- terra::vect(pol)
+          invisible(capture.output({
+            abundance_est <- bam_pop_size(abd, crop_ext = poly_v) %>%
+              rename(pop_est = total_pop) %>%
+              mutate(species = sp,
+                     season = "breeding",
+                     sdmSource = paste0("BAM", ver),
+                     popEstSource = paste0("BAM", ver))
+          }))
+          
+          return(abundance_est)
+        })
+        names(pop_est_bam) <- names(polys_tmp)
+        
+        #combine BAM results
+        bamResults <- dplyr::bind_rows(pop_est_bam, .id = "polyID") %>%
+          select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+          arrange(polyID)
       }
+    }#END OF BAM WORKFLOW 
+    
+    #--------------------------------------
+    #CGAM Workflow
+    #--------------------------------------
+    #create empty data
+    cgamResults <- data.frame(species = NA,
+                              polyID = NA,
+                              sdmSource = NA,
+                              popEstSource = NA,
+                              season = NA,
+                              pop_est = NA)
+    
+    if(sdm$CGAMv1 == "Yes") {
+      #confirm that conservation polygons overlap with BAM AOI
+      invisible(capture.output({
+        peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "cgam")
+      }))
+      polyTest <- purrr::map(polys, polyOverlap)
       
-      #estimate population size for each polygon using existing function
-      pop_est_bam <- lapply(polys, function(pol) {
-        poly_v <- terra::vect(pol)
-        invisible(capture.output({
-          abundance_est <- bam_pop_size(abd, crop_ext = poly_v) %>%
-            rename(pop_est = total_pop) %>%
+      polys_tmp <- polys[unlist(polyTest)]
+      
+      if(length(polys_tmp) > 0) {
+        cat("\t CGAM density model \n")
+        
+        #download CGAM raster for given species
+        cgamDir <- "data/spatial/cgamRasters"
+        dir.create(cgamDir, showWarnings = FALSE)
+        spCode <- read.csv("data/IBPSpeciesCodes.csv") %>%
+          dplyr::filter(COMMONNAME == sp) %>%
+          pull(SPEC)
+        
+        file <- osfr::osf_retrieve_node("csugd") %>%
+          osfr::osf_ls_files(pattern = spCode)
+        file_path <- file.path(cgamDir, file$name)
+        
+        if(!file.exists(file_path)) {
+          osfr::osf_download(file, path = cgamDir)
+        }
+        abd <- terra::rast(file_path)
+        
+        #estimate population size
+        pop_est_cgam <- lapply(polys, function(pol) {
+          poly_v <- terra::vect(pol) %>%
+            terra::project(crs(abd))
+          abd <- crop(abd, poly_v, snap = "near", mask = T)
+          abundance_est <- round(global(abd, fun = "sum", na.rm = TRUE), -2) %>%
+            rename(pop_est = sum) %>%
             mutate(species = sp,
                    season = "breeding",
-                   sdmSource = paste0("BAM", ver),
-                   popEstSource = paste0("BAM", ver))
-        }))
+                   sdmSource = "CGAMv1",
+                   popEstSource = "CGAMv1")
+          return(abundance_est)
+        })
+        names(pop_est_cgam) <- names(polys)
         
-        return(abundance_est)
-      })
-      names(pop_est_bam) <- names(polys)
-      
-      #combine BAM results
-      bamResults <- dplyr::bind_rows(pop_est_bam, .id = "polyID") %>%
-        select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
-        arrange(polyID)
-    } else {
-      bamResults <- data.frame(species = NA,
-                            polyID = NA,
-                            sdmSource = NA,
-                            popEstSource = NA,
-                            season = NA,
-                            pop_est = NA)
-      }#END OF BAM WORKFLOW 
-    
-    #CGAM Workflow
-    if(sdm$CGAMv1 == "Yes") {
-      cat("\t CGAM density model \n")
-      
-      #download CGAM raster for given species
-      cgamDir <- "data/spatial/cgamRasters"
-      dir.create(cgamDir, showWarnings = FALSE)
-      spCode <- read.csv("data/IBPSpeciesCodes.csv") %>%
-        dplyr::filter(COMMONNAME == sp) %>%
-        pull(SPEC)
-      
-      file <- osfr::osf_retrieve_node("csugd") %>%
-        osfr::osf_ls_files(pattern = spCode)
-      file_path <- file.path(cgamDir, file$name)
-      
-      if(!file.exists(file_path)) {
-        osfr::osf_download(file, path = cgamDir)
+        #combine CGAM results
+        cgamResults <- dplyr::bind_rows(pop_est_cgam, .id = "polyID") %>%
+          select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+          arrange(polyID)
       }
-      abd <- terra::rast(file_path)
       
-      #estimate population size
-      pop_est_cgam <- lapply(polys, function(pol) {
-        poly_v <- terra::vect(pol) %>%
-          terra::project(crs(abd))
-        abd <- crop(abd, poly_v, snap = "near", mask = T)
-        abundance_est <- round(global(abd, fun = "sum", na.rm = TRUE), -2) %>%
-          rename(pop_est = sum) %>%
-          mutate(species = sp,
-                 season = "breeding",
-                 sdmSource = "CGAMv1",
-                 popEstSource = "CGAMv1")
-        return(abundance_est)
-      })
-      names(pop_est_cgam) <- names(polys)
-      
-      #combine CGAM results
-      cgamResults <- dplyr::bind_rows(pop_est_cgam, .id = "polyID") %>%
-        select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
-        arrange(polyID)
-    } else {
-      cgamResults <- data.frame(species = NA,
-                               polyID = NA,
-                               sdmSource = NA,
-                               popEstSource = NA,
-                               season = NA,
-                               pop_est = NA)
     } #END of CGAM Workflow
     
     #combine results across data sources
@@ -429,13 +448,15 @@ popEsts <- function(species, polys) {
                            cgamResults) %>%
       filter(rowSums(!is.na(.)) > 0) %>% #remove rows with all NAs
       dplyr::arrange(polyID, season, sdmSource)
+    
     #clear environment and RAM before running next species
-    keep <- c("results", "sdmSources", "peSources")
+    keep <- c("results", "sdmSources", "peSources", "polyOverlap")
     rm(list = setdiff(ls(), keep),
        envir = environment())
     invisible(capture.output({gc()}))
     
   } #END OF SPECIES LOOP
+  
   #combine results across species
   results <- do.call(rbind, results)
   rownames(results) <- NULL
