@@ -21,10 +21,14 @@ library(terra)
 library(osfr)
 library(purrr)
 
+#Import layers for testing
 st_layers("data/test/ATWR.gpkg")
 sand <- st_read(dsn = "data/test/SAND.gpkg", layer = "SAND_boundary")
 atwr <- st_read(dsn = "data/test/ATWR.gpkg", layer = "ATWR_boundary")
 polys <- list("SAND" = sand, "ATWR" = atwr)
+
+nawca_list <- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE)
+species <- nawca_list$NAWCA_species[sample(1:nrow(nawca_list), 5)]
 
 species <- list("Savannah Sparrow", "White-throated Sparrow", "Mallard")
 
@@ -96,7 +100,7 @@ popEsts <- function(species, polys) {
       #download eBird relative abundance surface if no already present
       spCode <- ebirdst::get_species(sp)
       if(!any(basename(list.dirs(ebirdFolder, recursive = TRUE)) == spCode)) {
-        cat("Downloading eBird relative abundance surface for:", sp, "\n")
+        cat("\t Downloading eBird relative abundance surface for:", sp, "\n")
         # Download seasonal max abundance data at 3 km
         suppressMessages(
           try({ebirdst_download_status(sp, pattern = "abundance_seasonal_mean_3km", download_occurrence = FALSE, dry_run = FALSE, force = TRUE)}, silent = TRUE)
@@ -209,7 +213,7 @@ popEsts <- function(species, polys) {
       
       #ACAD Canada/US estimates Start
       ######################################################
-      use_canus <- peSp$acad == "Yes" && length(polys_canus) > 0
+      use_canus <- exists("polys_canus") && peSp$acad == "Yes" && length(polys_canus) > 0
       condition <- (peSp$acad == "Yes" && peSp$pif_reg == "No" && peSp$fws_reg == "No") ||
         use_canus
 
