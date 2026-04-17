@@ -210,7 +210,7 @@ popEsts <- function(species, polys) {
               prop_poly <- terra::crop(prop_strata, poly_v, snap = "near", mask = T)
               prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
               
-              abundance_est <- round(prop_poly_sum * pepoly, -2)  # Compute absolute abundance
+              abundance_est <- round(prop_poly_sum * pepoly, -1)  # Compute absolute abundance
               abundance_est$season <- rownames(abundance_est)
               abundance_est$popEstSource <- psource
               return(abundance_est)
@@ -258,7 +258,7 @@ popEsts <- function(species, polys) {
             prop_poly <- terra::crop(prop_canus, poly_v, snap = "near", mask = T)
             prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
             
-            abundance_est <- round(prop_poly_sum * pe$acad_uscan, -2)  # Compute absolute abundance
+            abundance_est <- round(prop_poly_sum * pe$acad_uscan, -1)  # Compute absolute abundance
             abundance_est$season <- rownames(abundance_est)
             abundance_est$popEstSource <- "ACAD Can/USA"
             return(abundance_est)
@@ -304,7 +304,7 @@ popEsts <- function(species, polys) {
               terra::mask(mask = poly_v)
             prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
             
-            abundance_est <- round(prop_poly_sum * pe$acad_global, -2)  # Compute absolute abundance
+            abundance_est <- round(prop_poly_sum * pe$acad_global, -1)  # Compute absolute abundance
             abundance_est$season <- rownames(abundance_est)
             abundance_est$popEstSource <- "ACAD global"
             return(abundance_est)
@@ -316,11 +316,11 @@ popEsts <- function(species, polys) {
         ebirdResults <- dplyr::bind_rows(
           c(pop_est_breeding,pop_est_nonbreed),
           .id = "polyID") %>%
-          rename(pop_est = sum) %>%
-          mutate(sdmSource = "eBird",
+          dplyr::rename(pop_est = sum) %>%
+          dplyr::mutate(sdmSource = "eBird",
                  species = sp) %>%
-          select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
-          arrange(polyID)
+          dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est) %>%
+          dplyr::arrange(polyID)
         rownames(ebirdResults) <- NULL
         
       } else {
@@ -390,8 +390,8 @@ popEsts <- function(species, polys) {
           
           #combine BAM results
           bamResults <- dplyr::bind_rows(pop_est_bam, .id = "polyID") %>%
-            select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
-            arrange(polyID)
+            dplyr::select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+            dplyr::arrange(polyID)
         }
       }#END OF BAM WORKFLOW 
       
@@ -439,7 +439,7 @@ popEsts <- function(species, polys) {
             poly_v <- terra::vect(pol) %>%
               terra::project(crs(abd))
             abd <- crop(abd, poly_v, snap = "near", mask = T)
-            abundance_est <- round(global(abd, fun = "sum", na.rm = TRUE), -2) %>%
+            abundance_est <- round(global(abd, fun = "sum", na.rm = TRUE), -1) %>%
               rename(pop_est = sum) %>%
               mutate(species = sp,
                      season = "breeding",
