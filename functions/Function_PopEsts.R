@@ -27,10 +27,14 @@ sand <- st_read(dsn = "data/test/SAND.gpkg", layer = "SAND_boundary")
 atwr <- st_read(dsn = "data/test/ATWR.gpkg", layer = "ATWR_boundary")
 polys <- list("SAND" = sand, "ATWR" = atwr)
 
-polysf <- st_read(dsn = "data/spatial/examplePolys.shp")
+polysf <- st_read(dsn = "data/spatial/examplePolys2.shp")
 #break polys into a list
 polys <- split(polysf, seq_len(nrow(polysf)))
 names(polys) <- polysf$NAME_E
+
+#Jenny and Andrew's test polygon
+polys <- list("Columbia Wetland" = st_read("data/spatial/TestPolys/Columbia Wetland Corridor area FINAL.shp"))
+species <- list("Sora", "American Coot", "Pied-billed Grebe")
 #test random list of species from the NAWCA priority species list
 nawca_list <- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE)
 species <- nawca_list$NAWCA_species[sample(1:nrow(nawca_list), 3)]
@@ -435,7 +439,7 @@ popEsts <- function(species, polys) {
           abd <- terra::rast(file_path)
           
           #estimate population size
-          pop_est_cgam <- lapply(polys, function(pol) {
+          pop_est_cgam <- lapply(polys_tmp, function(pol) {
             poly_v <- terra::vect(pol) %>%
               terra::project(crs(abd))
             abd <- crop(abd, poly_v, snap = "near", mask = T)
@@ -447,7 +451,7 @@ popEsts <- function(species, polys) {
                      popEstSource = "CGAMv1")
             return(abundance_est)
           })
-          names(pop_est_cgam) <- names(polys)
+          names(pop_est_cgam) <- names(polys_tmp)
           
           #combine CGAM results
           cgamResults <- dplyr::bind_rows(pop_est_cgam, .id = "polyID") %>%
@@ -487,19 +491,14 @@ final <- do.call(rbind, test)
 rownames(final) <- NULL
 
 
-sdmSources <- read.csv("data/sdm_speciesList.csv")
-peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
-#load population estimate tables and associated polygons
-usfws <- read.csv("data/PopEsts/modified/usfws.csv")
-acad <- read.csv("data/PopEsts/modified/acad.csv")
-pif_reg <- read.csv("data/PopEsts/modified/pif.csv")
-pifB <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg")
-usfwsB <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "usfws")
+#testing Jenny's function
+JennyGrebe <- estimate_pop_conservation_area_breeding("Pied-billed Grebe", polys[[1]], ACAD_clean)
+JennySora <- estimate_pop_conservation_area_breeding("Sora", polys[[1]], ACAD_clean)
+JennyCoot <- estimate_pop_conservation_area_breeding("American Coot", polys[[1]], ACAD_clean)
+jenny <- rbind(JennySora, JennyCoot, JennyGrebe)
+testJennynonBreed <- estimate_pop_conservation_area_global("Pied-billed Grebe", polys[[1]], ACAD_clean)
 
-#load shapefile boundaries for density models
-bamv4 <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv4")
-bamv5 <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv5")
-cgam <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "cgam")
+
 
 
 
