@@ -13,22 +13,8 @@
 #Note that script 1_CreateLookupInfo.R is run first. This downloads and creates the appropriate look up tables and spatial layers to determine which data sets are available for given species and locations
 #All lookup tables and spatial layers will be uploaded to the GitHub repo, so this step can be skipped by general users.
 
-
 # ------------------------------------------------------------
-# 1. List of required packages
-# ------------------------------------------------------------
-required_pkgs <- c(
-  "sf",      # for spatial functions
-  "dplyr",   # for data manipulation
-  "BAMexploreR",    # for raster/vector handling
-  "ebirdst",
-  "terra",
-  "osfr",
-  "purrr"
-)
-
-# ------------------------------------------------------------
-# 2. Helper function to check dependencies
+# 1. Helper function to check dependencies
 # ------------------------------------------------------------
 check_packages <- function(pkgs) {
   missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
@@ -47,6 +33,11 @@ check_packages <- function(pkgs) {
 # 3. Estimate populations function
 # ------------------------------------------------------------
 popEsts <- function(species, polys) {
+  
+  #check for required packages
+  required_pkgs <- c("sf", "dplyr", "BAMexploreR", "ebirdst", "terra", "osfr", "purrr")
+  check_packages(required_pkgs)
+  
   #load source tables for distribution models and population estimates
   sdmSources <- read.csv("data/sdm_speciesList.csv")
   peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
