@@ -49,6 +49,21 @@ popEsts <- function(species, polys) {
     return(as.logical(test))
   }
   
+  #function to estimate population size from density model
+  #pol = conservation polygon, sdm = species raster, fact = factor to transform units into individuals/pixel
+  popEst_DensityModel <- function(pol, sdm, fact = 1, dataSource) {
+    poly_v <- terra::vect(pol) %>%
+      terra::project(terra::crs(sdm))
+    abd <- terra::crop(sdm, poly_v, snap = "near", mask = T)
+    abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE) * fact, -1) %>%
+      dplyr::rename(pop_est = sum) %>%
+      dplyr::mutate(species = sp,
+                    season = "breeding",
+                    sdmSource = dataSource,
+                    popEstSource = dataSource)
+    return(abundance_est)
+  }
+  
   #loop through species and estimate population size for all available data sources
   results <- list()
   for (sp in species) {
@@ -153,7 +168,7 @@ popEsts <- function(species, polys) {
               #2. extract population estimates
               pepoly <- pe %>%
                 dplyr::filter(stratum %in% strata$stratum) %>%
-                dplyr::pull(pop_est)
+                pull(pop_est)
               if(length(pepoly) > 0) {
                 pepoly <- sum(pepoly)
               } else {
@@ -332,26 +347,33 @@ popEsts <- function(species, polys) {
           
           #check if species raster is already downloaded, then download if needed
           if(!file.exists(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))) {
-            abd <- BAMexploreR::bam_get_layer(spCode, ver, "data/spatial/bamRasters")
+            cat("\t Downloading BAM density model for:", sp, "\n")
+            suppressMessages({
+              abd <- BAMexploreR::bam_get_layer(spCode, ver, "data/spatial/bamRasters")
+            })
           } else {
             abd <- list()
-            abd[[spCode]] <- rast(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))
+            abd[[spCode]] <- terra::rast(file.path("data/spatial/bamRasters",paste0("pred-", spCode, "-CAN-Mean.tif")))
           }
           
           #estimate population size for each polygon using existing function
-          pop_est_bam <- lapply(polys_tmp, function(pol) {
-            poly_v <- terra::vect(pol)
-            invisible(capture.output({
-              abundance_est <- BAMexploreR::bam_pop_size(abd, crop_ext = poly_v) %>%
-                dplyr::rename(pop_est = total_pop) %>%
-                dplyr::mutate(species = sp,
-                       season = "breeding",
-                       sdmSource = paste0("BAM", ver),
-                       popEstSource = paste0("BAM", ver))
-            }))
-            
-            return(abundance_est)
-          })
+          pop_est_bam <- purrr::map(polys_tmp, popEst_DensityModel,
+                                    sdm = abd[[spCode]],
+                                    fact = 100,
+                                    dataSource = paste0("BAM", ver))
+          # pop_est_bam <- lapply(polys_tmp, function(pol) {
+          #   poly_v <- terra::vect(pol)
+          #   invisible(capture.output({
+          #     abundance_est <- BAMexploreR::bam_pop_size(abd, crop_ext = poly_v) %>%
+          #       dplyr::rename(pop_est = total_pop) %>%
+          #       dplyr::mutate(species = sp,
+          #              season = "breeding",
+          #              sdmSource = paste0("BAM", ver),
+          #              popEstSource = paste0("BAM", ver))
+          #   }))
+          # 
+          #   return(abundance_est)
+          # })
           names(pop_est_bam) <- names(polys_tmp)
           
           #combine BAM results
@@ -396,23 +418,28 @@ popEsts <- function(species, polys) {
           file_path <- file.path(cgamDir, file$name)
           
           if(!file.exists(file_path)) {
+            cat("\t Downloading CGAM density model for:", sp, "\n")
             osfr::osf_download(file, path = cgamDir)
           }
           abd <- terra::rast(file_path)
           
           #estimate population size
-          pop_est_cgam <- lapply(polys_tmp, function(pol) {
-            poly_v <- terra::vect(pol) %>%
-              terra::project(terra::crs(abd))
-            abd <- crop(abd, poly_v, snap = "near", mask = T)
-            abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE), -1) %>%
-              dplyr::rename(pop_est = sum) %>%
-              dplyr::mutate(species = sp,
-                     season = "breeding",
-                     sdmSource = "CGAMv1",
-                     popEstSource = "CGAMv1")
-            return(abundance_est)
-          })
+          pop_est_cgam <- purrr::map(polys_tmp, popEst_DensityModel,
+                                     sdm = abd,
+                                     fact = 1,
+                                     dataSource = "CGAMv1")
+          # pop_est_cgam <- lapply(polys_tmp, function(pol) {
+          #   poly_v <- terra::vect(pol) %>%
+          #     terra::project(terra::crs(abd))
+          #   abd <- crop(abd, poly_v, snap = "near", mask = T)
+          #   abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE), -1) %>%
+          #     dplyr::rename(pop_est = sum) %>%
+          #     dplyr::mutate(species = sp,
+          #            season = "breeding",
+          #            sdmSource = "CGAMv1",
+          #            popEstSource = "CGAMv1")
+          #   return(abundance_est)
+          # })
           names(pop_est_cgam) <- names(polys_tmp)
           
           #combine CGAM results
