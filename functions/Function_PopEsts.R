@@ -39,8 +39,8 @@ popEsts <- function(species, polys) {
   check_packages(required_pkgs)
   
   #load source tables for distribution models and population estimates
-  sdmSources <- read.csv("data/sdm_speciesList.csv")
-  peSources <- read.csv("data/PopEsts/modified/popEst_speciesList.csv")
+  sdmSources <- read.csv("LookupData/sdm_speciesList.csv")
+  peSources <- read.csv("LookupData/PopEsts/modified/popEst_speciesList.csv")
   
   #create function to determine if conservation polygons overlap with strata polygons
   polyOverlap <- function(pol) {
@@ -119,12 +119,12 @@ popEsts <- function(species, polys) {
         if(peSp$pif_reg == "Yes" | peSp$fws_reg == "Yes") {
           if(peSp$pif_reg == "Yes") {
             #load regional PIF estimates
-            pe <- read.csv("data/PopEsts/modified/pif.csv") %>%
+            pe <- read.csv("LookupData/modified/pif.csv") %>%
               dplyr::filter(common_name == sp)
             
             #load strata for regional PIF estimates
             invisible(capture.output({
-              peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg")
+              peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "pif_reg")
             }))
             
             #set population estimate source for export later
@@ -133,12 +133,12 @@ popEsts <- function(species, polys) {
           
           if(peSp$fws_reg == "Yes") {
             #load regional USFWS estimates
-            pe <- read.csv("data/PopEsts/modified/usfws.csv") %>%
+            pe <- read.csv("LookupData/usfws.csv") %>%
               dplyr::filter(common_name == sp)
             
             #load strata for regional USFWS estimates
             invisible(capture.output({
-              peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "usfws")
+              peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "usfws")
             }))
             
             #set population estimate source for export later
@@ -212,12 +212,12 @@ popEsts <- function(species, polys) {
           polys_tmp <- if(use_canus) {polys_canus} else {polys}
           
           #load ACAD population estimates
-          pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
+          pe <- read.csv("LookupData/acad.csv") %>%
             dplyr::filter(common_name == sp)
           
           #load polygon for Canada/USA. Using pif_reg and manipulating to have only 1 stratum (Can/US)
           invisible(capture.output({
-            canus <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg") %>%
+            canus <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "pif_reg") %>%
               dplyr::mutate(stratum = "canus") %>%
               dplyr::group_by(stratum) %>%
               dplyr::summarize(geom = sf::st_union(geom))
@@ -270,7 +270,7 @@ popEsts <- function(species, polys) {
         
         if(peSp$acad == "Yes") {
           #load ACAD population estimates
-          pe <- read.csv("data/PopEsts/modified/acad.csv") %>%
+          pe <- read.csv("LookupData/acad.csv") %>%
             dplyr::filter(common_name == sp)
           
           #estimate population size for polygons
@@ -331,7 +331,7 @@ popEsts <- function(species, polys) {
         
         #confirm that conservation polygons overlap with BAM AOI
         invisible(capture.output({
-          peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = paste0("bam", ver))
+          peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = paste0("bam", ver))
         }))
         polyTest <- purrr::map(polys, polyOverlap)
         polys_tmp <- polys[unlist(polyTest)]
@@ -397,7 +397,7 @@ popEsts <- function(species, polys) {
       if(sdm$CGAMv1 == "Yes") {
         #confirm that conservation polygons overlap with BAM AOI
         invisible(capture.output({
-          peStrat <- sf::st_read(dsn = "data/spatial/modified/modelExtents.gpkg", layer = "cgam")
+          peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "cgam")
         }))
         polyTest <- purrr::map(polys, polyOverlap)
         
@@ -409,7 +409,7 @@ popEsts <- function(species, polys) {
           #download CGAM raster for given species
           cgamDir <- "data/spatial/cgamRasters"
           dir.create(cgamDir, showWarnings = FALSE)
-          spCode <- read.csv("data/IBPSpeciesCodes.csv") %>%
+          spCode <- read.csv("LookupData/IBPSpeciesCodes.csv") %>%
             dplyr::filter(COMMONNAME == sp) %>%
             dplyr::pull(SPEC)
           
