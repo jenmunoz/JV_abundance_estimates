@@ -147,7 +147,7 @@ conservation_polygon <-st_read("data/conservation_polygon/BC/BC_boundary_layer.s
 # ACAD population data
 #ACAD_raw <- read.csv("data/ACAD_global_2024_05_23.csv")
 
-ACAD_raw <- read.csv("data/ACAD Global 2024.05.23.csv")
+ACAD_raw <- read.csv("data/PopEsts/Global_ACAD_2024_05_23.csv")
 
 ACAD_clean <- ACAD_raw %>%
   mutate(
