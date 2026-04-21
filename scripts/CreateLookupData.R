@@ -1,20 +1,16 @@
 ###_###_####_###_###_###_###_###_###_###_###_###_###_###_###_###_###_
-### CHECKING DATA AVAILABILITY FOR SPECIES OF INTEREST
+### CHECKING DATA AVAILABILITY FOR SPECIES OF INTEREST AND CREATED
+### LOOK UP TABLES AND SPATIAL EXTENTS FOR ALL DATA SOURCES
 ###_###_####_###_###_###_###_###_###_###_###_###_###_###_###_###_###_
 ##
 ## Objective:
-## Check for which species of interest we have (1) eBird Status & Trends data, (2) BAM
+## 1. Check for which species of interest we have (1) eBird Status & Trends data, (2) BAM
 ## density models, (3) CGAM density models, (4) DUC density models.
-## This includes verifying that taxonomy between datasets is properly matched.
-##
-## Workflow:
-## 1) Check the access code to the eBird data
-## 2) Retrieve the eBird list of species available in ebirdst
-## 3) Compare with the NAWCA species list
-## 4) Identify missing species and investigate taxonomy mismatches
+## 2. Create lookup tables with population estimates from all available sources
+## 3. Create spatial extent objects for each model sources, inlcuded strata, when necessary
 ##
 ## Written by: Jenny Munoz and Barry Robinson
-## Last updated: March 2026
+## Last updated: April 2026
 ###
 ###_###_####_###_###_###_###_###_###_###_###_###_###_###_###_###_###_
 
@@ -50,28 +46,12 @@ library(dplyr)
 library(stringr)
 options(scipen = 999)
 
-# ================================================================
-# 1) DATA
-# ================================================================
-# 
-# # eBird Status & Trends species list
-# ebirdst::ebirdst_runs
-# 
-# # NAWCA species list matched with ACAD
-# nawca_list <- read.csv(
-#   "data/nawca_acad_species_match.csv",
-#   stringsAsFactors = FALSE) %>%
-#   as_tibble() %>%
-#   mutate(common_name = NAWCA_species) %>%
-#   filter(ACAD == "Yes")
-# 
-# # Check unique ACAD values
-# unique(nawca_list$ACAD)
 
 # ================================================================
 # 1) CREATE MASTER LIST OF SPECIES AND SOURCES OF DISTRIBUTION 
 # MODELS FOR EACH
 # ================================================================
+# Start with eBird because it has the longest species list
 # Select key fields from eBird runs table
 ebirdst_runs_selected <- ebirdst_runs %>%
   dplyr::select(
@@ -117,7 +97,8 @@ species_models <- full_join(eBirdspp, bam) %>%
   mutate(across(everything(), ~coalesce(.x, "No")))
 
 #export species distribution model table
-write.csv(species_models, "data/sdm_speciesList.csv")
+dir.create("LookupData")
+write.csv(species_models, "LookupData/sdm_speciesList.csv")
 
 # View full list if needed
 # View(ebirdst_runs_selected)
@@ -208,10 +189,10 @@ species_pop <- full_join(acadsp, pifsp) %>%
   mutate(across(everything(), ~coalesce(.x, "No")))
 
 #save populations estimates and lookup table
-write.csv(species_pop, "data/PopEsts/modified/popEst_speciesList.csv", row.names = F)
-write.csv(usfws_exp, "data/PopEsts/modified/usfws.csv", row.names = F)
-write.csv(acad, "data/PopEsts/modified/acad.csv", row.names = F)
-write.csv(pif_reg, "data/PopEsts/modified/pif.csv", row.names = F)
+write.csv(species_pop, "LookupData/popEst_speciesList.csv", row.names = F)
+write.csv(usfws_exp, "LookupData/usfws.csv", row.names = F)
+write.csv(acad, "LookupData/acad.csv", row.names = F)
+write.csv(pif_reg, "LookupData/pif.csv", row.names = F)
 
 # ================================================================
 # 3) DOWNLOAD SPATIAL LAYERS ASSOCIATED WITH POPULATION ESTIMATES
@@ -294,12 +275,12 @@ cgam <- rast("data/spatial/CGAM_ex.tif") %>%
   
 
 #export all layers to a single gpkg file
-dir.create("data/spatial/modified")
-st_write(bcr, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "pif_reg")
-st_write(bamv4, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv4", append = T)
-st_write(bamv5, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "bamv5", append = T)
-st_write(wfStrata, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "usfws", append = T)
-st_write(cgam, dsn = "data/spatial/modified/modelExtents.gpkg", layer = "cgam", append = T)
+
+st_write(bcr, dsn = "LookupData/modelExtents.gpkg", layer = "pif_reg")
+st_write(bamv4, dsn = "LookupData/modelExtents.gpkg", layer = "bamv4", append = T)
+st_write(bamv5, dsn = "LookupData/modelExtents.gpkg", layer = "bamv5", append = T)
+st_write(wfStrata, dsn = "LookupData/modelExtents.gpkg", layer = "usfws", append = T)
+st_write(cgam, dsn = "LookupData/modelExtents.gpkg", layer = "cgam", append = T)
   
 
 
