@@ -30,7 +30,7 @@ check_packages <- function(pkgs) {
 }
 
 # ------------------------------------------------------------
-# 3. Estimate populations function
+# 2. Estimate populations function
 # ------------------------------------------------------------
 popEsts <- function(species, polys) {
   
