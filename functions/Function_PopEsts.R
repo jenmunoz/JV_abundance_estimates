@@ -168,7 +168,7 @@ popEsts <- function(species, polys) {
               #2. extract population estimates
               pepoly <- pe %>%
                 dplyr::filter(stratum %in% strata$stratum) %>%
-                pull(pop_est)
+                dplyr::pull(pop_est)
               if(length(pepoly) > 0) {
                 pepoly <- sum(pepoly)
               } else {
