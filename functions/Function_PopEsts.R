@@ -40,7 +40,7 @@ popEsts <- function(species, polys) {
   
   #load source tables for distribution models and population estimates
   sdmSources <- read.csv("LookupData/sdm_speciesList.csv")
-  peSources <- read.csv("LookupData/PopEsts/modified/popEst_speciesList.csv")
+  peSources <- read.csv("LookupData/popEst_speciesList.csv")
   
   #create function to determine if conservation polygons overlap with strata polygons
   polyOverlap <- function(pol) {
@@ -119,7 +119,7 @@ popEsts <- function(species, polys) {
         if(peSp$pif_reg == "Yes" | peSp$fws_reg == "Yes") {
           if(peSp$pif_reg == "Yes") {
             #load regional PIF estimates
-            pe <- read.csv("LookupData/modified/pif.csv") %>%
+            pe <- read.csv("LookupData/pif.csv") %>%
               dplyr::filter(common_name == sp)
             
             #load strata for regional PIF estimates
