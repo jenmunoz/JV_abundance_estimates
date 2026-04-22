@@ -458,7 +458,7 @@ popEsts <- function(species, polys) {
         dplyr::arrange(polyID, season, sdmSource)
       
       #clear environment and RAM before running next species
-      keep <- c("results", "sdmSources", "peSources", "polyOverlap")
+      keep <- c("results", "sdmSources", "peSources", "polyOverlap", "popEst_DensityModel")
       rm(list = setdiff(ls(), keep),
          envir = environment())
       invisible(capture.output({gc()}))
