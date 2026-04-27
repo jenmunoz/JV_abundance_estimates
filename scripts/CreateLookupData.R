@@ -87,7 +87,7 @@ cgam <- data.frame(common_name = c("Baird's Sparrow", "Bobolink", "Brewer's Spar
                    CGAMv1 = "Yes")
 
 #create list of species with DUC models
-duc <- data.frame(common_name = c("Green-winged Teal", "American Wigeon", "Blue-winged Teal", "Canvasback", "Gadwall", "Mallard", "Northern Pintail", "Redhead", "Lesser Scaup"),
+duc <- data.frame(common_name = c("Green-winged Teal", "American Wigeon", "Blue-winged Teal", "Canvasback", "Gadwall", "Mallard", "Northern Pintail", "Northern Shoveler", "Redhead", "Lesser Scaup"),
                   DUC = "Yes")
 
 #combine all model sources into a single table
@@ -195,7 +195,7 @@ write.csv(acad, "LookupData/acad.csv", row.names = F)
 write.csv(pif_reg, "LookupData/pif.csv", row.names = F)
 
 # ================================================================
-# 3) DOWNLOAD SPATIAL LAYERS ASSOCIATED WITH POPULATION ESTIMATES
+# 3) CREATE SPATIAL EXTENT LAYERS FOR EACH DISTRIBUTION MODEL SOURCE
 # ================================================================
 dir.create("data/spatial")
 #BAM spatial extent map
@@ -272,6 +272,14 @@ cgam <- rast("data/spatial/CGAM_ex.tif") %>%
   mutate(CGAM_ex = 1) %>%
   summarize(geometry = st_union(geometry)) %>%
   st_transform(crs = bamCRS)
+
+#DUC density models
+duc <- rast("data/spatial/ducRasters/AGWT_perSQK.tif") %>%
+  as.polygons(dissolve = T) %>%
+  st_as_sf()%>%
+  mutate(DUC_ex = 1) %>%
+  summarize(geometry = st_union(geometry)) %>%
+  st_transform(crs = bamCRS)
   
 
 #export all layers to a single gpkg file
@@ -281,6 +289,8 @@ st_write(bamv4, dsn = "LookupData/modelExtents.gpkg", layer = "bamv4", append = 
 st_write(bamv5, dsn = "LookupData/modelExtents.gpkg", layer = "bamv5", append = T)
 st_write(wfStrata, dsn = "LookupData/modelExtents.gpkg", layer = "usfws", append = T)
 st_write(cgam, dsn = "LookupData/modelExtents.gpkg", layer = "cgam", append = T)
+st_write(duc, dsn = "LookupData/modelExtents.gpkg", layer = "duc", append = T)
+
   
 
 
