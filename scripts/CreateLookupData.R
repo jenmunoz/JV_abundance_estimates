@@ -87,7 +87,7 @@ cgam <- data.frame(common_name = c("Baird's Sparrow", "Bobolink", "Brewer's Spar
                    CGAMv1 = "Yes")
 
 #create list of species with DUC models
-duc <- data.frame(common_name = c("Green-winged Teal", "American Wigeon", "Blue-winged Teal", "Canvasback", "Gadwall", "Mallard", "Northern Pintail", "Northern Shoveler", "Redhead", "Lesser Scaup"),
+duc <- data.frame(common_name = c("Blue-winged Teal", "Canvasback", "Gadwall", "Mallard", "Northern Pintail", "Northern Shoveler", "Redhead"),
                   DUC = "Yes")
 
 #combine all model sources into a single table
@@ -98,7 +98,7 @@ species_models <- full_join(eBirdspp, bam) %>%
 
 #export species distribution model table
 dir.create("LookupData")
-write.csv(species_models, "LookupData/sdm_speciesList.csv")
+write.csv(species_models, "LookupData/sdm_speciesList.csv", row.names = F)
 
 # View full list if needed
 # View(ebirdst_runs_selected)
