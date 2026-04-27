@@ -399,8 +399,8 @@ popEsts <- function(species, polys) {
         invisible(capture.output({
           peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "cgam")
         }))
-        polyTest <- purrr::map(polys, polyOverlap)
         
+        polyTest <- purrr::map(polys, polyOverlap)
         polys_tmp <- polys[unlist(polyTest)]
         
         if(length(polys_tmp) > 0) {
@@ -428,18 +428,7 @@ popEsts <- function(species, polys) {
                                      sdm = abd,
                                      fact = 1,
                                      dataSource = "CGAMv1")
-          # pop_est_cgam <- lapply(polys_tmp, function(pol) {
-          #   poly_v <- terra::vect(pol) %>%
-          #     terra::project(terra::crs(abd))
-          #   abd <- crop(abd, poly_v, snap = "near", mask = T)
-          #   abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE), -1) %>%
-          #     dplyr::rename(pop_est = sum) %>%
-          #     dplyr::mutate(species = sp,
-          #            season = "breeding",
-          #            sdmSource = "CGAMv1",
-          #            popEstSource = "CGAMv1")
-          #   return(abundance_est)
-          # })
+          
           names(pop_est_cgam) <- names(polys_tmp)
           
           #combine CGAM results
@@ -450,10 +439,58 @@ popEsts <- function(species, polys) {
         
       } #END of CGAM Workflow
       
+      
+      #--------------------------------------
+      #DUC Workflow
+      #--------------------------------------
+      #create empty data
+      ducResults <- data.frame(species = NA,
+                                polyID = NA,
+                                sdmSource = NA,
+                                popEstSource = NA,
+                                season = NA,
+                                pop_est = NA)
+      if(sdm$DUC == "Yes") {
+        invisible(capture.output({
+          peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "duc")
+        }))
+        
+        polyTest <- purrr::map(polys, polyOverlap)
+        polys_tmp <- polys[unlist(polyTest)]
+        
+        if(length(polys_tmp) > 0) {
+          cat("\t DUC density model \n")
+          
+          #load DUC raster for given species
+          spCode <- read.csv("LookupData/IBPSpeciesCodes.csv") %>%
+            dplyr::filter(COMMONNAME == sp) %>%
+            dplyr::pull(SPEC)
+          
+          ducDir <- "data/spatial/ducRasters"
+          file <- list.files(ducDir, pattern = spCode)
+          abd <- terra::rast(file.path(ducDir, file))
+          
+          #estimate population size
+          pop_est_duc <- purrr::map(polys_tmp, popEst_DensityModel,
+                                     sdm = abd,
+                                     fact = 0.16, #DUC models have 0.4 x 0.4 km pixels = 0.16km^2
+                                     dataSource = "DUC")
+          
+          names(pop_est_duc) <- names(polys_tmp)
+          
+          #combine CGAM results
+          ducResults <- dplyr::bind_rows(pop_est_duc, .id = "polyID") %>%
+            dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est) %>%
+            dplyr::arrange(polyID)
+        }
+        
+      } #END DUC Workflow
+      
       #combine results across data sources
       results[[sp]] <- rbind(ebirdResults,
                              bamResults,
-                             cgamResults) %>%
+                             cgamResults,
+                             ducResults) %>%
         dplyr::filter(rowSums(!is.na(.)) > 0) %>% #remove rows with all NAs
         dplyr::arrange(polyID, season, sdmSource)
       
