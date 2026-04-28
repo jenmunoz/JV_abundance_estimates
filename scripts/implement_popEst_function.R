@@ -31,7 +31,7 @@ library(ebirdst)
 
 
 #set your ebird access key. You should only have to run this once. 
-set_ebirdst_access_key("************") # REPLACE WITH YOUR 12 DIGIT ALPHANUMERIC EBIRF ACCESS KEY
+set_ebirdst_access_key("************") # REPLACE WITH YOUR 12 DIGIT ALPHANUMERIC EBIRD ACCESS KEY
 
 #Create folder to contain spatial data used for the analysis, 
 #included species distribution models and polygons for proposed NAWCA projects
@@ -40,7 +40,7 @@ set_ebirdst_access_key("************") # REPLACE WITH YOUR 12 DIGIT ALPHANUMERIC
 dir.create("data/spatial/polygons", recursive = TRUE) #only need to run this one. 
 
 
-#save all polygons in "data/spatial/polygons". Polygons can be saved in any format accepted by
+#Save all polygons in "data/spatial/polygons". Polygons can be saved in any format accepted by
 #the sf package in R (e.g. .shp, .gpkg, .gbd)
 #Then load them into R as a list of individual polygons
 #ITS IMPORTANT THAT ALL THE POLYGONS ARE INPUT INTO A NAMED LIST
@@ -68,7 +68,7 @@ polys <- list("poly1" = poly1, "poly2" = poly2)
 #Create a list of species using common names
 # a) Example using a custom list
 species <- c("Mallard", "Baird's Sparrow", "Common Yellowthroat")
-
+species <- c("Mallard", "Blue-winged Teal")
 # b) Example pulling species from NAWCA Priority Species list (table included in R project)
 priority_spp <- read.csv("LookupData/nawca_acad_species_match.csv")
 priority_spp$NAWCA_species #View list of all priority species
