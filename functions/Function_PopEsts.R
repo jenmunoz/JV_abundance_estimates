@@ -55,9 +55,11 @@ popEsts <- function(species, polys) {
     poly_v <- terra::vect(pol) %>%
       terra::project(terra::crs(sdm))
     abd <- terra::crop(sdm, poly_v, snap = "near", mask = T)
+    poly_area <- terra::expanse(abd, unit = "km")$area
     abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE) * fact, -1) %>%
       dplyr::rename(pop_est = sum) %>%
-      dplyr::mutate(species = sp,
+      dplyr::mutate(density_sqkm = round(pop_est/poly_area, 1),
+                    species = sp,
                     season = "breeding",
                     sdmSource = dataSource,
                     popEstSource = dataSource)
@@ -191,9 +193,11 @@ popEsts <- function(species, polys) {
               prop_poly <- terra::crop(prop_strata, poly_v, snap = "near", mask = T)
               prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
               
-              abundance_est <- round(prop_poly_sum * pepoly, -1)  # Compute absolute abundance
-              abundance_est$season <- rownames(abundance_est)
-              abundance_est$popEstSource <- psource
+              poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
+              abundance_est <- round(prop_poly_sum * pepoly, -1) %>% # compute absolute abundance
+                dplyr::mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
+                              season = rownames(.),
+                              popEstSource = psource)
               return(abundance_est)
             })
             names(pop_est_breeding_reg) <- names(polys_reg)
@@ -239,17 +243,19 @@ popEsts <- function(species, polys) {
             prop_poly <- terra::crop(prop_canus, poly_v, snap = "near", mask = T)
             prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
             
-            abundance_est <- round(prop_poly_sum * pe$acad_uscan, -1)  # Compute absolute abundance
-            abundance_est$season <- rownames(abundance_est)
-            abundance_est$popEstSource <- "ACAD Can/USA"
+            poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
+            abundance_est <- round(prop_poly_sum * pe$acad_uscan, -1) %>% # Compute absolute abundance
+              mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
+                     season = rownames(.),
+                     popEstSource = "ACAD Can/USA")
             return(abundance_est)
           })
           names(pop_est_breeding_canus) <- names(polys_tmp)
           
           
-          if(exists("pop_est_breeding_reg")) {
-            pop_est_breeding <- c(pop_est_breeding_reg,pop_est_breeding_canus)
-          } else {pop_est_breeding <- pop_est_breeding_canus}
+          # if(exists("pop_est_breeding_reg")) {
+          #   pop_est_breeding <- c(pop_est_breeding_reg,pop_est_breeding_canus)
+          # } else {pop_est_breeding <- pop_est_breeding_canus}
         }#ACAD Canada/US estimates End
         
         #combine results with regional and canus estimates if both exists for a species (likely only waterfowl when one polygon is within USFWS strata and one is without)
@@ -285,9 +291,11 @@ popEsts <- function(species, polys) {
               terra::mask(mask = poly_v)
             prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
             
-            abundance_est <- round(prop_poly_sum * pe$acad_global, -1)  # Compute absolute abundance
-            abundance_est$season <- rownames(abundance_est)
-            abundance_est$popEstSource <- "ACAD global"
+            poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
+            abundance_est <- round(prop_poly_sum * pe$acad_global, -1) %>% #Compute absolute abundance
+              mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
+                     season = rownames(.),
+                     popEstSource = "ACAD global")
             return(abundance_est)
           })
           names(pop_est_nonbreed) <- names(polys)
@@ -295,12 +303,12 @@ popEsts <- function(species, polys) {
         
         #combine results from eBird for breeding and non-breeding season
         ebirdResults <- dplyr::bind_rows(
-          c(pop_est_breeding,pop_est_nonbreed),
+          c(pop_est_breeding, pop_est_nonbreed),
           .id = "polyID") %>%
           dplyr::rename(pop_est = sum) %>%
           dplyr::mutate(sdmSource = "eBird",
                  species = sp) %>%
-          dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est) %>%
+          dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est, density_sqkm) %>%
           dplyr::arrange(polyID)
         rownames(ebirdResults) <- NULL
         
@@ -310,7 +318,8 @@ popEsts <- function(species, polys) {
                                    sdmSource = NA,
                                    popEstSource = NA,
                                    season = NA,
-                                   pop_est = NA)
+                                   pop_est = NA,
+                                   density_sqkm = NA)
       }#END OF eBIRD WORKFLOW
       
       #--------------------------------------
@@ -322,7 +331,8 @@ popEsts <- function(species, polys) {
                                sdmSource = NA,
                                popEstSource = NA,
                                season = NA,
-                               pop_est = NA)
+                               pop_est = NA,
+                               density_sqkm = NA)
       
       if(sdm$BAMv4 == "Yes") {# | sdm$BAMv5 == "Yes") { #### Excluding V5 for now while there's a glitch in BAMexploreR
         #Determine which version is available for given species. Use V5 if available
@@ -378,7 +388,7 @@ popEsts <- function(species, polys) {
           
           #combine BAM results
           bamResults <- dplyr::bind_rows(pop_est_bam, .id = "polyID") %>%
-            dplyr::select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+            dplyr::select(species, polyID,sdmSource, popEstSource, season, pop_est, density_sqkm) %>%
             dplyr::arrange(polyID)
         }
       }#END OF BAM WORKFLOW 
@@ -392,7 +402,8 @@ popEsts <- function(species, polys) {
                                 sdmSource = NA,
                                 popEstSource = NA,
                                 season = NA,
-                                pop_est = NA)
+                                pop_est = NA,
+                                density_sqkm = NA)
       
       if(sdm$CGAMv1 == "Yes") {
         #confirm that conservation polygons overlap with BAM AOI
@@ -433,7 +444,7 @@ popEsts <- function(species, polys) {
           
           #combine CGAM results
           cgamResults <- dplyr::bind_rows(pop_est_cgam, .id = "polyID") %>%
-            dplyr::select(species, polyID,sdmSource, popEstSource, season, pop_est) %>%
+            dplyr::select(species, polyID,sdmSource, popEstSource, season, pop_est, density_sqkm) %>%
             dplyr::arrange(polyID)
         }
         
@@ -445,11 +456,12 @@ popEsts <- function(species, polys) {
       #--------------------------------------
       #create empty data
       ducResults <- data.frame(species = NA,
-                                polyID = NA,
-                                sdmSource = NA,
-                                popEstSource = NA,
-                                season = NA,
-                                pop_est = NA)
+                               polyID = NA,
+                               sdmSource = NA,
+                               popEstSource = NA,
+                               season = NA,
+                               pop_est = NA,
+                               density_sqkm = NA)
       if(sdm$DUC == "Yes") {
         invisible(capture.output({
           peStrat <- sf::st_read(dsn = "LookupData/modelExtents.gpkg", layer = "duc")
@@ -480,7 +492,7 @@ popEsts <- function(species, polys) {
           
           #combine CGAM results
           ducResults <- dplyr::bind_rows(pop_est_duc, .id = "polyID") %>%
-            dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est) %>%
+            dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est, density_sqkm) %>%
             dplyr::arrange(polyID)
         }
         
