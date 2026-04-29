@@ -42,28 +42,111 @@ popEsts <- function(species, polys) {
   sdmSources <- read.csv("LookupData/sdm_speciesList.csv")
   peSources <- read.csv("LookupData/popEst_speciesList.csv")
   
-  #create function to determine if conservation polygons overlap with strata polygons
+  #Function to determine if conservation polygons overlap with strata polygons
   polyOverlap <- function(pol) {
     poly_prj <- sf::st_transform(pol, terra::crs(peStrat))
     test <- sf::st_intersects(poly_prj, sf::st_union(peStrat), sparse = FALSE)
     return(as.logical(test))
   }
   
-  #function to estimate population size from density model
+  #Function to create proportional relative abundance rasters for strata:
+  #1. query regional strata that intersect with polygons. 
+  #2. extract regional population estimates for those strata
+  #3. Create proportional relative abundance surface for each strata
+  prop_ebird_strata <- function(pol, sdm) {
+    #1. query regional strata that intersect
+    poly_prj <- sf::st_transform(pol, terra::crs(peStrat))
+    #determine intersecting strata and remove slivers
+    suppressWarnings(ints <- sf::st_intersection(peStrat, poly_prj))
+    min_area <- units::set_units(3000000, "m^2") #using 3e6 m^2 as minimum area
+    ints <- ints[sf::st_area(ints) > min_area, ] 
+    strata <- peStrat %>%
+      dplyr::filter(stratum %in% ints$stratum)
+    
+    #2. extract population estimates for intersecting strata
+    pepoly <- pe %>%
+      dplyr::filter(stratum %in% strata$stratum) %>%
+      dplyr::pull(pop_est)
+    if(length(pepoly) > 0) {
+      pepoly <- sum(pepoly)
+    } else {
+      pepoly <- 0
+    }
+    
+    #3. Create proportional relative abudnace raster for each polygon, matched to the appropriate strata
+    strata_v <- terra::vect(strata) %>%
+      terra::project(terra::crs(sdm))
+    abd_strata <- terra::crop(sdm, strata_v, mask = T)
+    
+    total_strata <- terra::global(abd_strata, fun = "sum", na.rm = TRUE)
+    prop_strata <- abd_strata / total_strata$sum
+    
+    return(list("pe" = pepoly, "prop_raster" = prop_strata))
+  }
+  
+  #Function to estimate population size from eBird relative abundance surfaces
+  pop_est_ebird <- function(pol, pe_sdm, popEstSource) {
+    #extract population estimate and sdm from list
+    pe <- pe_sdm[["pe"]]
+    prop_strata <- pe_sdm[["prop_raster"]]
+    
+    poly_v <- terra::vect(pol) %>%
+      terra::project(terra::crs(prop_strata))
+    
+    poly_area <- terra::expanse(poly_v, unit = "km") #calculate area of polygon
+    results <- terra::extract(prop_strata, poly_v, weights = T) %>% #extract values of pixels that intersect with polygon
+      dplyr::summarise(dplyr::across(-c(ID, weight),
+                                     ~ sum(.x * weight, na.rm = T))) %>% #sum pixel values weighted by proportion of pixel that occurs within the polygon
+      tidyr::pivot_longer(cols = everything(),
+                          names_to = "season",
+                          values_to = "propPolySum") %>%
+      dplyr::mutate(pop_est = round(propPolySum * pe, -1)) %>% #multiply weighted, summed proportions by total population size to get population estimate
+      dplyr::mutate(density_sqkm = round(pop_est/poly_area, 3), #divide by area to get mean density
+                    popEstSource = popEstSource) %>%
+      select(season, popEstSource, pop_est, density_sqkm)
+    return(results)
+  }
+  
+  #Function to estimate population size from density model
   #pol = conservation polygon, sdm = species raster, fact = factor to transform units into individuals/pixel
   popEst_DensityModel <- function(pol, sdm, fact = 1, dataSource) {
     poly_v <- terra::vect(pol) %>%
       terra::project(terra::crs(sdm))
-    abd <- terra::crop(sdm, poly_v, snap = "near", mask = T)
-    poly_area <- terra::expanse(abd, unit = "km")$area
-    abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE) * fact, -1) %>%
-      dplyr::rename(pop_est = sum) %>%
-      dplyr::mutate(density_sqkm = round(pop_est/poly_area, 1),
-                    species = sp,
-                    season = "breeding",
-                    sdmSource = dataSource,
-                    popEstSource = dataSource)
-    return(abundance_est)
+    
+    poly_area <- terra::expanse(poly_v, unit = "km") #calculate area of polygon
+    pop_est <- terra::extract(sdm, poly_v, weights = T) %>% #extract values of pixels that intersect with polygon
+      dplyr::summarise(dplyr::across(-c(ID, weight),~ sum(.x * weight, na.rm = T))) %>% #sum pixel values weighted by proportion of pixel that occurs within the polygon
+      dplyr::pull(colnames(.)) * fact #multiply by factor to convert density to individuals/pixel, if needed
+    
+    results <- tibble(pop_est = round(pop_est, -1),
+                      density_sqkm = round(pop_est/poly_area, 3),
+                      species = sp,
+                      season = "breeding",
+                      sdmSource = dataSource,
+                      popEstSource = dataSource)
+    return(results)
+    
+    
+    tidyr::pivot_longer(cols = everything(),
+                          names_to = "season",
+                          values_to = "propPolySum") %>%
+      dplyr::mutate(pop_est = round(propPolySum * pe, -1)) %>% #multiply weighted, summed proportions by total population size to get population estimate
+      dplyr::mutate(density_sqkm = round(pop_est/poly_area, 3), #divide by area to get mean density
+                    popEstSource = popEstSource) %>%
+      select(season, popEstSource, pop_est, density_sqkm)
+    
+    
+    
+    # abd <- terra::crop(sdm, poly_v, snap = "near", mask = T)
+    # poly_area <- terra::expanse(abd, unit = "km")$area
+    # abundance_est <- round(terra::global(abd, fun = "sum", na.rm = TRUE) * fact, -1) %>%
+    #   dplyr::rename(pop_est = sum) %>%
+    #   dplyr::mutate(density_sqkm = round(pop_est/poly_area, 1),
+    #                 species = sp,
+    #                 season = "breeding",
+    #                 sdmSource = dataSource,
+    #                 popEstSource = dataSource)
+    # return(abundance_est)
   }
   
   #loop through species and estimate population size for all available data sources
@@ -147,62 +230,21 @@ popEsts <- function(species, polys) {
             psource <- "USFWS"
           }
           
+          #test which, if any, polygons overlap with strata for population estiamtes
           polyTest <- purrr::map(polys, polyOverlap)
           
           #split polygons that overlap with regional strata and those that don't
           polys_reg <- polys[unlist(polyTest)]
           polys_canus <- polys[!unlist(polyTest)]
           
-          #1. query regional strata that intersect with polygons. These strata will be used to crop eBird relative abundance surfaces
-          #2. extract regional population estimates for those strata
-          #3. use eBird relative abundace surface to estimate population size of conservation polygons
           if(length(polys_reg) > 0) {
-            pop_est_breeding_reg <- lapply(polys_reg, FUN = function(pol) {
-              #1. query regional strata that intersect
-              poly_prj <- sf::st_transform(pol, terra::crs(peStrat))
-              #determine intersecting strata and remove slivers
-              suppressWarnings(ints <- sf::st_intersection(peStrat, poly_prj))
-              min_area <- units::set_units(3000000, "m^2") #using 3e6 m^2 as minimum area
-              ints <- ints[sf::st_area(ints) > min_area, ] 
-              strata <- peStrat %>%
-                dplyr::filter(stratum %in% ints$stratum)
-              
-              #2. extract population estimates
-              pepoly <- pe %>%
-                dplyr::filter(stratum %in% strata$stratum) %>%
-                dplyr::pull(pop_est)
-              if(length(pepoly) > 0) {
-                pepoly <- sum(pepoly)
-              } else {
-                pepoly <- 0
-              }
-              
-              #3. estimate population size
-              #match projections, crop and mask eBird surface with pop est strata
-              strata_v <- terra::vect(strata)
-              strata_prj <- terra::project(strata_v, terra::crs(abd_breeding))
-              abd_strata <- terra::crop(abd_breeding, strata_prj) %>%
-                terra::mask(mask = strata_prj)
-              
-              total_strata <- terra::global(abd_strata, fun = "sum", na.rm = TRUE)
-              prop_strata <- abd_strata / total_strata$sum
-              
-              poly_v <- terra::vect(poly_prj) %>%
-                terra::project(terra::crs(prop_strata))
-              
-              prop_poly <- terra::crop(prop_strata, poly_v, snap = "near", mask = T)
-              prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
-              
-              poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
-              abundance_est <- round(prop_poly_sum * pepoly, -1) %>% # compute absolute abundance
-                dplyr::mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
-                              season = rownames(.),
-                              popEstSource = psource)
-              return(abundance_est)
-            })
+            #extract population estimates and proportional relative abundance raster for each overlaping strata
+            pe_prop_strata <- purrr::map(polys_reg, prop_ebird_strata, sdm = abd_breeding)
+            
+            #estimate population size for each strata
+            pop_est_breeding_reg <- purrr::map2(polys_reg, pe_prop_strata, pop_est_ebird, popEstSource = psource)
             names(pop_est_breeding_reg) <- names(polys_reg)
           }
-          
         }#Regional Pop Ests End
         ######################################################
         
@@ -217,7 +259,8 @@ popEsts <- function(species, polys) {
           
           #load ACAD population estimates
           pe <- read.csv("LookupData/acad.csv") %>%
-            dplyr::filter(common_name == sp)
+            dplyr::filter(common_name == sp) %>%
+            dplyr::pull(acad_uscan)
           
           #load polygon for Canada/USA. Using pif_reg and manipulating to have only 1 stratum (Can/US)
           invisible(capture.output({
@@ -228,37 +271,23 @@ popEsts <- function(species, polys) {
           }))
           
           #match projections, crop and mask eBird surface with Canada/USA polygon
-          canus_v <- terra::vect(canus) #change to SpatVect
-          canus_prj <- terra::project(canus_v, terra::crs(abd_breeding)) #project Canada/USA to match eBird before cropping
-          abd_canus <- terra::crop(abd_breeding, canus_prj, snap = "near", mask = T) #crop and mask eBird to Canada/USA
+          canus_v <- terra::vect(canus) %>% #change to SpatVect
+            terra::project(terra::crs(abd_breeding)) #project Canada/USA to match eBird before cropping
+          abd_canus <- terra::crop(abd_breeding, canus_v, mask = T) #crop and mask eBird to Canada/USA
           
-          #estimate population size for polygons
+          #Calculate proportional relative abundance raster for CAN-US
           total_canus <- terra::global(abd_canus, fun = "sum", na.rm = TRUE)
           prop_canus <- abd_canus / total_canus$sum
           
-          pop_est_breeding_canus <- lapply(polys_tmp, FUN = function(pol) {
-            poly_v <- pol %>%
-              sf::st_transform(crs = sf::st_crs(prop_canus)) %>%
-              terra::vect()
-            prop_poly <- terra::crop(prop_canus, poly_v, snap = "near", mask = T)
-            prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
-            
-            poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
-            abundance_est <- round(prop_poly_sum * pe$acad_uscan, -1) %>% # Compute absolute abundance
-              mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
-                     season = rownames(.),
-                     popEstSource = "ACAD Can/USA")
-            return(abundance_est)
-          })
+          #Create list for input into pop_est function
+          pe_prop_canus <- list("pe" = pe, "prop_raster" = prop_canus)
+          
+          #Estimate population size for each polygon
+          pop_est_breeding_canus <- purrr::map(polys_tmp, pop_est_ebird, pe_sdm = pe_prop_canus, popEstSource = "ACAD Can/USA")
           names(pop_est_breeding_canus) <- names(polys_tmp)
-          
-          
-          # if(exists("pop_est_breeding_reg")) {
-          #   pop_est_breeding <- c(pop_est_breeding_reg,pop_est_breeding_canus)
-          # } else {pop_est_breeding <- pop_est_breeding_canus}
         }#ACAD Canada/US estimates End
         
-        #combine results with regional and canus estimates if both exists for a species (likely only waterfowl when one polygon is within USFWS strata and one is without)
+        #combine results with regional and Can-US estimates if both exists for a species (likely only waterfowl when one polygon is within USFWS strata and one is without)
         if (exists("pop_est_breeding_reg") && exists("pop_est_breeding_canus")) {
           pop_est_breeding <- c(pop_est_breeding_reg, pop_est_breeding_canus)
         } else if (exists("pop_est_breeding_reg")) {
@@ -267,8 +296,9 @@ popEsts <- function(species, polys) {
           pop_est_breeding <- pop_est_breeding_canus
         }
         
-        #remove unneeded polygon lists to save memory
-        rm(list = intersect(c("polys_reg", "polys_canus", "polys_tmp"), ls()))
+        #remove unneeded polygon and raster lists to save memory
+        rm(list = intersect(c("polys_reg", "polys_canus", "polys_tmp", "pe_prop_strata", "pe_prop_canus"), ls()))
+        invisible(capture.output({gc()}))
         
         #Non-breeding season Start
         ###########################################################
@@ -277,27 +307,18 @@ popEsts <- function(species, polys) {
         if(peSp$acad == "Yes") {
           #load ACAD population estimates
           pe <- read.csv("LookupData/acad.csv") %>%
-            dplyr::filter(common_name == sp)
+            dplyr::filter(common_name == sp) %>%
+            pull(acad_global)
           
-          #estimate population size for polygons
-          total_global <- terra::global(abd_nonbreed, fun = "sum", na.rm = TRUE)
+          #Calculate proportional relative abundance raster for global
+          total_global <- terra::global(abd_nonbreed, fun = "sum", na.rm = T)
           prop_global <- abd_nonbreed / total_global$sum
           
-          pop_est_nonbreed <- lapply(polys, FUN = function(pol) {
-            poly_v <- pol %>%
-              sf::st_transform(crs = sf::st_crs(prop_global)) %>%
-              terra::vect()
-            prop_poly <- terra::crop(prop_global, poly_v) %>%
-              terra::mask(mask = poly_v)
-            prop_poly_sum <- terra::global(prop_poly, fun = "sum", na.rm = TRUE)
-            
-            poly_area <- terra::expanse(prop_poly, unit = "km")$area #calculate area of polygon
-            abundance_est <- round(prop_poly_sum * pe$acad_global, -1) %>% #Compute absolute abundance
-              mutate(density_sqkm = round(sum/poly_area, 1), #calculate density
-                     season = rownames(.),
-                     popEstSource = "ACAD global")
-            return(abundance_est)
-          })
+          #create list for pop_est function
+          pe_prop_global <- list("pe" = pe, "prop_raster" = prop_global)
+          
+          #Estimate non-breeding populations size for all polygons
+          pop_est_nonbreed <- purrr::map(polys, pop_est_ebird, pe_sdm = pe_prop_global, popEstSource = "ACAD global")
           names(pop_est_nonbreed) <- names(polys)
         }
         
@@ -305,7 +326,6 @@ popEsts <- function(species, polys) {
         ebirdResults <- dplyr::bind_rows(
           c(pop_est_breeding, pop_est_nonbreed),
           .id = "polyID") %>%
-          dplyr::rename(pop_est = sum) %>%
           dplyr::mutate(sdmSource = "eBird",
                  species = sp) %>%
           dplyr::select(species, polyID, sdmSource, popEstSource, season, pop_est, density_sqkm) %>%
@@ -371,19 +391,6 @@ popEsts <- function(species, polys) {
                                     sdm = abd[[spCode]],
                                     fact = 100,
                                     dataSource = paste0("BAM", ver))
-          # pop_est_bam <- lapply(polys_tmp, function(pol) {
-          #   poly_v <- terra::vect(pol)
-          #   invisible(capture.output({
-          #     abundance_est <- BAMexploreR::bam_pop_size(abd, crop_ext = poly_v) %>%
-          #       dplyr::rename(pop_est = total_pop) %>%
-          #       dplyr::mutate(species = sp,
-          #              season = "breeding",
-          #              sdmSource = paste0("BAM", ver),
-          #              popEstSource = paste0("BAM", ver))
-          #   }))
-          # 
-          #   return(abundance_est)
-          # })
           names(pop_est_bam) <- names(polys_tmp)
           
           #combine BAM results
@@ -437,7 +444,7 @@ popEsts <- function(species, polys) {
           #estimate population size
           pop_est_cgam <- purrr::map(polys_tmp, popEst_DensityModel,
                                      sdm = abd,
-                                     fact = 1,
+                                     fact = 1, #CGAM models are already in individuals/pixels
                                      dataSource = "CGAMv1")
           
           names(pop_est_cgam) <- names(polys_tmp)
@@ -507,12 +514,11 @@ popEsts <- function(species, polys) {
         dplyr::arrange(polyID, season, sdmSource)
       
       #clear environment and RAM before running next species
-      keep <- c("results", "sdmSources", "peSources", "polyOverlap", "popEst_DensityModel")
+      keep <- c("results", "sdmSources", "peSources", "polyOverlap", "prop_ebird_strata", "pop_est_ebird", "popEst_DensityModel")
       rm(list = setdiff(ls(), keep),
          envir = environment())
       invisible(capture.output({gc()}))
     }
-    
     
   } #END OF SPECIES LOOP
   
