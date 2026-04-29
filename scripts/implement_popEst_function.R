@@ -34,7 +34,7 @@ library(ebirdst)
 set_ebirdst_access_key("************") # REPLACE WITH YOUR 12 DIGIT ALPHANUMERIC EBIRD ACCESS KEY
 
 #Create folder to contain spatial data used for the analysis, 
-#included species distribution models and polygons for proposed NAWCA projects
+#including species distribution models and polygons for proposed NAWCA projects
 #This will create the following three nested folders within the root directory where
 #JV_abundance_estimates.Rproj was saved and loaded from.
 dir.create("data/spatial/polygons", recursive = TRUE) #only need to run this one. 
@@ -68,11 +68,11 @@ polys <- list("poly1" = poly1, "poly2" = poly2)
 #Create a list of species using common names
 # a) Example using a custom list
 species <- c("Mallard", "Baird's Sparrow", "Common Yellowthroat")
-species <- c("Mallard", "Blue-winged Teal")
+species <- c("Mallard", "Gadwall", "Northern Pintail")
 # b) Example pulling species from NAWCA Priority Species list (table included in R project)
 priority_spp <- read.csv("LookupData/nawca_acad_species_match.csv")
 priority_spp$NAWCA_species #View list of all priority species
-species <- c("Connecticut Warbler", "Baird's Sandpiper", "Lesser Yellowlegs") #copy and paste desired species into this list
+species <- c("Western Grebe", "Nelson's Sparrow", "Yellow-breasted Chat") #copy and paste desired species into this list
 
 #Note that you could provide the entire priority species list to the popEst function, but this would
 #take a VERY long time to run and its is NOT recommended.
