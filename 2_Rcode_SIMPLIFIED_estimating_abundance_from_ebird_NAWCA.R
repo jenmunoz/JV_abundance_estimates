@@ -57,10 +57,15 @@ getwd()              # Working directory
 ebirdst_version()    # Data version (e.g., 2022)
 ebirdst_data_dir()   # List the directory where you will be saving the ebird rasters
 
-# Set data download directory (session only), if you want to have it on a speciefic folder
+# Set data download directory (session only), if you want to have it on a specific folder
+
 Sys.setenv(
   EBIRDST_DATA_DIR =
     "C:/Users/jmunoz/Local_BirdsCanada/1_JV_science_coordinator_role_local/1_Projects/14_relativetoabsolute_abundance/JV_abundance_estimates/data/species_layers")
+
+# Sys.setenv(
+#   EBIRDST_DATA_DIR =
+#     "data/species_layers")
 
 ebirdst_data_dir()
 
@@ -91,16 +96,22 @@ load_raster()
 # 2a) DOWNLOAD  ALL NAWCA SPECIES DATA
 # ================================================================
 # List of species from NAWCA priorities or a list of species of interest 
-View(nawca_list)
+# Here I am using a file with the species of interest 
+
 nawca_list<- read.csv("data/nawca_acad_species_match.csv", stringsAsFactors = FALSE) %>%
   as_tibble() %>% 
   mutate(common_name=NAWCA_species) %>% 
   filter(ACAD=="Yes")
 
+#View(nawca_list)
+
 species_interest_list<-nawca_list$common_name
 
+# ALTERNATIVELY you can create a list of species of interest
+#species_interest_list<-c("American Avocet","American Bittern","American Black Duck","American Coot","American White Pelican","American Wigeon")
+
 # Download data for the list of species 
-# NOTE that we are downloading and using the mean abundance seasonal, we coudl also use the MAX!
+# NOTE that we are downloading and using the mean abundance seasonal, we could also use the MAX!
 
 for (species in species_interest_list) {
   cat("/n>>> Downloading:", species, "/n")
@@ -351,7 +362,7 @@ estimate_pop_conservation_area_breeding("American Bittern",conservation_polygon,
 
 # == = == === ==== === == = === == === == === = ==
 # == = == === ==== === == = === == === == === = ==
-#### The end
+#### THE END
 # == = == === ==== === == = === == === == === = ==
 # == = == === ==== === == = === == === == === = ==
 
