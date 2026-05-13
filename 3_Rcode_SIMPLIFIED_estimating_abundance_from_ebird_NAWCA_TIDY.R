@@ -116,12 +116,21 @@ species_interest_list<-nawca_list$common_name
 
 # Download data for the list of species 
 # NOTE that we are downloading and using the mean abundance seasonal, we could also use the MAX!
+# for the mean 
+# for (species in species_interest_list) {
+#   cat("/n>>> Downloading:", species, "/n")
+#   # Download seasonal max abundance data at 3 km
+#   try({
+#     ebirdst_download_status(species,pattern = "abundance_seasonal_mean_3km",download_occurrence = FALSE,dry_run = FALSE, force = FALSE)
+#   }, silent = TRUE)
+# }
 
+# for the max
 for (species in species_interest_list) {
   cat("/n>>> Downloading:", species, "/n")
   # Download seasonal max abundance data at 3 km
   try({
-    ebirdst_download_status(species,pattern = "abundance_seasonal_mean_3km",download_occurrence = FALSE,dry_run = FALSE, force = FALSE)
+    ebirdst_download_status(species,pattern = "abundance_seasonal_max_3km",download_occurrence = FALSE,dry_run = FALSE, force = TRUE)
   }, silent = TRUE)
 }
 
